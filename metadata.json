@@ -1,0 +1,6 @@
+{
+  "name": "ThumbMaster AI",
+  "description": "YouTube video konuları için yapay zeka destekli kapak (thumbnail) görseli analiz, CTR optimizasyon ve tasarım rehber platformu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
