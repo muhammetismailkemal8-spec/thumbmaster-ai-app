@@ -1,0 +1,884 @@
+import { GoogleGenAI, Type } from '@google/genai';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * ============================================================================
+ * ENVIRONMENT VARIABLES
+ * ============================================================================
+ * - GEMINI_API_KEY: (Required) Google Gemini API Key for AI analysis and blueprint generation.
+ * - SUPABASE_URL: (Optional/Required for Auth) Supabase project URL.
+ * - SUPABASE_ANON_KEY: (Optional/Required for Auth) Supabase public anonymous API key.
+ * - ALLOWED_ORIGIN: (Optional) Production CORS origin (e.g., https://thumbmaster.app).
+ * - NODE_ENV: 'production' | 'development'.
+ * ============================================================================
+ */
+
+export interface AuthUser {
+  id: string;
+  email?: string;
+  tier?: 'free' | 'pro';
+}
+
+export interface RateLimitRecord {
+  count: number;
+  resetTime: number; // Timestamp in ms (Midnight UTC)
+}
+
+export interface RateLimitStore {
+  get(key: string): Promise<RateLimitRecord | undefined> | RateLimitRecord | undefined;
+  set(key: string, record: RateLimitRecord): Promise<void> | void;
+  increment(key: string, resetTime: number): Promise<RateLimitRecord> | RateLimitRecord;
+}
+
+class InMemoryRateLimitStore implements RateLimitStore {
+  private store = new Map<string, RateLimitRecord>();
+
+  get(key: string): RateLimitRecord | undefined {
+    return this.store.get(key);
+  }
+
+  set(key: string, record: RateLimitRecord): void {
+    this.store.set(key, record);
+  }
+
+  increment(key: string, resetTime: number): RateLimitRecord {
+    const existing = this.store.get(key);
+    const now = Date.now();
+
+    if (!existing || now > existing.resetTime) {
+      const newRecord: RateLimitRecord = { count: 1, resetTime };
+      this.store.set(key, newRecord);
+      return newRecord;
+    }
+
+    existing.count += 1;
+    this.store.set(key, existing);
+    return existing;
+  }
+
+  cleanup(): void {
+    const now = Date.now();
+    for (const [key, record] of this.store.entries()) {
+      if (now > record.resetTime) {
+        this.store.delete(key);
+      }
+    }
+  }
+}
+
+export const rateLimitStore = new InMemoryRateLimitStore();
+
+export function getNextMidnightUtc(): number {
+  const d = new Date();
+  d.setUTCHours(24, 0, 0, 0);
+  return d.getTime();
+}
+
+export const TIER_LIMITS: Record<string, { unauthenticated: number; free: number; pro: number }> = {
+  '/api/analyze-thumbnail': {
+    unauthenticated: 30, // Free daily trial quota per IP
+    free: 50,            // Authenticated free user
+    pro: 200,           // Authenticated Pro user
+  },
+  '/api/generate-thumbnail-concept': {
+    unauthenticated: 30, // Free daily trial quota per IP
+    free: 50,            // Authenticated free user
+    pro: 200,           // Authenticated Pro user
+  },
+};
+
+// ============================================================================
+// SUPABASE CLIENT & AUTH
+// ============================================================================
+let supabaseClient: SupabaseClient | null = null;
+
+export function getSupabase(): SupabaseClient | null {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null;
+  }
+
+  if (!supabaseClient) {
+    supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+  }
+  return supabaseClient;
+}
+
+export async function verifyAuthHeader(authHeader?: string): Promise<{ user?: AuthUser; error?: string }> {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return { user: undefined };
+  }
+
+  const token = authHeader.split(' ')[1]?.trim();
+  if (!token) {
+    return { user: undefined };
+  }
+
+  const supabase = getSupabase();
+  if (!supabase) {
+    return { user: undefined };
+  }
+
+  try {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data.user) {
+      return { error: 'Unauthorized: Invalid or expired authentication token.' };
+    }
+
+    const userMetadata = data.user.user_metadata || {};
+    const tier: 'free' | 'pro' = userMetadata.tier === 'pro' ? 'pro' : 'free';
+
+    return {
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        tier,
+      },
+    };
+  } catch (err) {
+    console.error('Supabase authentication error:', err);
+    return { error: 'Unauthorized: Failed to authenticate token.' };
+  }
+}
+
+// ============================================================================
+// CORS & BODY PARSER
+// ============================================================================
+export function handleCors(req: any, res: any): boolean {
+  const origin = (req.headers?.origin || req.headers?.Origin || '') as string;
+  const allowedOriginEnv = process.env.ALLOWED_ORIGIN;
+
+  if (origin) {
+    const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
+    const isVercelApp = origin.includes('.vercel.app');
+    const isRunApp = origin.includes('.run.app');
+    const isExactMatch = allowedOriginEnv && (origin === allowedOriginEnv || allowedOriginEnv === '*');
+
+    if (process.env.NODE_ENV !== 'production' || !allowedOriginEnv || isExactMatch || isLocalhost || isVercelApp || isRunApp) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', allowedOriginEnv);
+    }
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return true;
+  }
+  return false;
+}
+
+export async function parseBody(req: any): Promise<any> {
+  if (req.body && typeof req.body === 'object') {
+    return req.body;
+  }
+
+  if (typeof req.body === 'string' && req.body.trim().length > 0) {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      throw new Error('Invalid JSON payload');
+    }
+  }
+
+  // Stream fallback if body has not been parsed by serverless runtime
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.on('data', (chunk: any) => {
+      raw += chunk;
+    });
+    req.on('end', () => {
+      if (!raw || raw.trim().length === 0) {
+        return resolve({});
+      }
+      try {
+        resolve(JSON.parse(raw));
+      } catch (err) {
+        reject(new Error('Invalid JSON payload'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+export function getClientIp(req: any): string {
+  const forwarded = req.headers?.['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0].trim();
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0].trim();
+  }
+  return (
+    req.headers?.['x-real-ip'] ||
+    req.socket?.remoteAddress ||
+    req.connection?.remoteAddress ||
+    req.ip ||
+    'unknown-ip'
+  );
+}
+
+// ============================================================================
+// SANITIZATION & PROMPT INJECTION DEFENSE
+// ============================================================================
+export function sanitizeString(input: unknown, maxLength: number): string {
+  if (typeof input !== 'string') return '';
+  return input.trim().slice(0, maxLength);
+}
+
+export const FORBIDDEN_PROMPT_PATTERNS = [
+  /ignore\s+(?:all\s+)?(?:previous|prior)\s+instructions?/i,
+  /ignore\s+(?:all\s+)?rules/i,
+  /system\s+prompt/i,
+  /api[_\s-]*key/i,
+  /\bgemini\b/i,
+  /you\s+are\s+now\b/i,
+  /\bact\s+as\b/i,
+  /\bdisregard\b/i,
+  /jailbreak/i,
+  /reveal\s+(?:all\s+)?instructions/i,
+];
+
+export function sanitizeForPrompt(input: string): { isValid: boolean; sanitized: string } {
+  if (!input) return { isValid: true, sanitized: '' };
+
+  for (const pattern of FORBIDDEN_PROMPT_PATTERNS) {
+    if (pattern.test(input)) {
+      return { isValid: false, sanitized: '' };
+    }
+  }
+
+  const cleaned = input.replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F]/g, '');
+  return { isValid: true, sanitized: cleaned };
+}
+
+export function validateAndParseBase64Image(imageBase64: unknown): { mimeType: string; data: string } | null {
+  if (typeof imageBase64 !== 'string' || !imageBase64) return null;
+  if (imageBase64.length > 15 * 1024 * 1024) return null; // Reject oversized base64 strings (>15MB)
+
+  const matches = imageBase64.match(/^data:(image\/(jpeg|png|webp|jpg));base64,([A-Za-z0-9+/=]+)$/);
+  if (!matches || matches.length !== 4) return null;
+
+  const mimeType = matches[1] === 'image/jpg' ? 'image/jpeg' : matches[1];
+  const data = matches[3];
+  return { mimeType, data };
+}
+
+export function getGenAIClient(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY environment variable is missing on the server.');
+  }
+  return new GoogleGenAI({ apiKey });
+}
+
+// ============================================================================
+// HANDLER 1: /api/analyze-thumbnail
+// ============================================================================
+export async function handleAnalyzeThumbnailRequest(req: any, res: any) {
+  if (handleCors(req, res)) return;
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method Not Allowed' });
+  }
+
+  try {
+    const authHeader = req.headers?.authorization || req.headers?.Authorization;
+    const authResult = await verifyAuthHeader(authHeader);
+    if (authResult.error) {
+      return res.status(401).json({ success: false, error: authResult.error });
+    }
+
+    const user = authResult.user;
+    const endpointPath = '/api/analyze-thumbnail';
+    const limits = TIER_LIMITS[endpointPath];
+
+    let key: string;
+    let allowedLimit: number;
+
+    if (user && user.id) {
+      key = `user:${user.id}:${endpointPath}`;
+      allowedLimit = user.tier === 'pro' ? limits.pro : limits.free;
+    } else {
+      const clientIp = getClientIp(req);
+      key = `ip:${clientIp}:${endpointPath}`;
+      allowedLimit = limits.unauthenticated;
+    }
+
+    const nextMidnight = getNextMidnightUtc();
+    const existing = await rateLimitStore.get(key);
+    const now = Date.now();
+
+    if (existing && now <= existing.resetTime && existing.count >= allowedLimit) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((existing.resetTime - now) / 1000));
+      return res.status(429).json({
+        success: false,
+        error: user
+          ? `Daily quota reached (${existing.count}/${allowedLimit} requests). Quota resets at midnight UTC.`
+          : `Unauthenticated daily limit reached (${existing.count}/${allowedLimit} requests). Please sign in for higher daily limits.`,
+        retryAfter: retryAfterSeconds,
+        quota: {
+          remaining: 0,
+          limit: allowedLimit,
+          resetAt: new Date(existing.resetTime).toISOString(),
+        },
+      });
+    }
+
+    // Body parsing
+    let body: any;
+    try {
+      body = await parseBody(req);
+    } catch {
+      return res.status(400).json({ success: false, error: 'Invalid JSON body in request.' });
+    }
+
+    const rawTitle = sanitizeString(body.videoTitle, 300);
+    const rawTopic = sanitizeString(body.videoTopic, 2000);
+    const rawAudience = sanitizeString(body.targetAudience, 200);
+    const rawCategory = sanitizeString(body.category, 200);
+    const rawImage = body.imageBase64;
+
+    if (!rawTitle || !rawTopic) {
+      return res.status(400).json({ success: false, error: 'Video title and topic are required.' });
+    }
+
+    // Prompt injection safety checks
+    const titleCheck = sanitizeForPrompt(rawTitle);
+    const topicCheck = sanitizeForPrompt(rawTopic);
+    const audienceCheck = sanitizeForPrompt(rawAudience);
+    const categoryCheck = sanitizeForPrompt(rawCategory);
+
+    if (!titleCheck.isValid || !topicCheck.isValid || !audienceCheck.isValid || !categoryCheck.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid input detected: Disallowed instructions or keywords found in your request.',
+      });
+    }
+
+    const videoTitle = titleCheck.sanitized;
+    const videoTopic = topicCheck.sanitized;
+    const targetAudience = audienceCheck.sanitized;
+    const category = categoryCheck.sanitized;
+
+    const parsedImage = rawImage ? validateAndParseBase64Image(rawImage) : null;
+    if (rawImage && !parsedImage) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid thumbnail image format. Please upload a valid JPEG, PNG, or WEBP image under 10MB.',
+      });
+    }
+
+    const ai = getGenAIClient();
+
+    const systemInstruction = `You are one of the world's best YouTube thumbnail and title optimization experts (a senior CTR director familiar with the psychological strategies of top creators like MrBeast, Veritasium, Kurzgesagt, Ali Abdaal, and Cleo Abram).
+Your job is to analyze the uploaded thumbnail and video title to create a high-converting, professional A/B test proposal with actionable recommendations.
+
+Rules:
+1. Accurately understand the core topic of the video.
+2. Do not generate clickbait. Create curiosity ("Curiosity Gap") without being misleading.
+3. Recommendations must align 100% with the actual video content.
+4. Apply psychological principles used by top YouTube channels (Curiosity Gap, high contrast, emotional hook, focal hierarchy).
+5. Account for curiosity gaps, color contrast, emotional hooks, visual focal point, and hierarchy.
+6. If the current thumbnail is already strong, propose a distinctly different angle or concept rather than minor tweaks.
+7. CRITICAL: You MUST provide all generated explanations, titles, summaries, feedback points, blueprints, and step-by-step guides in ENGLISH.`;
+
+    let userPrompt = `Video Title: "${videoTitle.replace(/"/g, '\\"')}"
+Video Topic / Summary: "${videoTopic.replace(/"/g, '\\"')}"
+Target Audience: "${targetAudience || 'General YouTube Audience'}"
+Category / Niche: "${category || 'General'}"`;
+
+    const parts: any[] = [];
+
+    if (parsedImage) {
+      parts.push({
+        inlineData: {
+          mimeType: parsedImage.mimeType,
+          data: parsedImage.data,
+        },
+      });
+      userPrompt += `\n\nAnalyze the uploaded YouTube thumbnail image above and evaluate its alignment with this video topic/title, mobile readability, color contrast, facial expression, and clickability. Then generate a complete A/B test proposal.`;
+    } else {
+      userPrompt += `\n\nNo thumbnail image was uploaded. Based on the video title and topic, detail potential risks of current concepts and explain what kind of thumbnail should be created, along with a full A/B test proposal.`;
+    }
+
+    parts.push({ text: userPrompt });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.6-flash',
+      contents: { parts },
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            overallCtrScore: { type: Type.NUMBER, description: 'Overall CTR potential score between 0 and 100' },
+            ctrGrade: { type: Type.STRING, description: 'Grade like A+, A, B, C, D' },
+            visualHierarchyScore: { type: Type.NUMBER, description: 'Score between 0 and 100' },
+            readabilityScore: { type: Type.NUMBER, description: 'Score between 0 and 100' },
+            emotionScore: { type: Type.NUMBER, description: 'Score between 0 and 100' },
+            focalPointScore: { type: Type.NUMBER, description: 'Score between 0 and 100' },
+            titleSynergyScore: { type: Type.NUMBER, description: 'Score between 0 and 100' },
+            summary: { type: Type.STRING, description: 'Comprehensive 2-3 paragraph breakdown in English' },
+            strengths: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'List of strong points of the thumbnail in English',
+            },
+            weaknesses: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'List of critical weaknesses or low-CTR triggers in English',
+            },
+            actionableTips: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'Actionable design and title fix instructions in English',
+            },
+            colorPsychologyAnalysis: { type: Type.STRING, description: 'Analysis of color contrast and palette' },
+            textOverlayFeedback: { type: Type.STRING, description: 'Feedback on text length, font, and positioning' },
+            faceExpressionFeedback: { type: Type.STRING, description: 'Feedback on faces, eye contact, and emotional hook' },
+            mobileFeedVisibility: { type: Type.STRING, description: 'How well it stands out on mobile devices (small screen preview)' },
+            suggestedABTestTitle: { type: Type.STRING, description: 'An alternative higher-CTR YouTube title' },
+            suggestedABTestThumbnailConcept: { type: Type.STRING, description: 'Concept description for A/B testing against current thumbnail' },
+            abTestDetails: {
+              type: Type.OBJECT,
+              description: 'Structured YouTube A/B Test recommendation',
+              properties: {
+                alternativeTitle: { type: Type.STRING, description: '1 powerful alternative YouTube title in English' },
+                thumbnailConcept: {
+                  type: Type.OBJECT,
+                  properties: {
+                    mainObject: { type: Type.STRING, description: 'Main subject / object' },
+                    background: { type: Type.STRING, description: 'Background composition' },
+                    colorPalette: { type: Type.STRING, description: 'Color palette' },
+                    lighting: { type: Type.STRING, description: 'Lighting setup' },
+                    textOverlay: { type: Type.STRING, description: 'Text hook (max 2-4 words)' },
+                    cameraAngle: { type: Type.STRING, description: 'Camera angle' },
+                    focalPoint: { type: Type.STRING, description: 'Focal point' },
+                    targetEmotion: { type: Type.STRING, description: 'Target emotional response' },
+                  },
+                  required: ['mainObject', 'background', 'colorPalette', 'lighting', 'textOverlay', 'cameraAngle', 'focalPoint', 'targetEmotion'],
+                },
+                whyItsStronger: {
+                  type: Type.OBJECT,
+                  properties: {
+                    attentionReason: { type: Type.STRING, description: 'Why it grabs more attention' },
+                    psychologicalPrinciples: { type: Type.STRING, description: 'Psychological principles used (MrBeast, Veritasium, Curiosity Gap, etc.)' },
+                    firstTwoSecondsImpact: { type: Type.STRING, description: 'Why it draws interest in the first 2 seconds' },
+                  },
+                  required: ['attentionReason', 'psychologicalPrinciples', 'firstTwoSecondsImpact'],
+                },
+                expectedImpact: {
+                  type: Type.OBJECT,
+                  properties: {
+                    ctrPotentialStars: { type: Type.NUMBER, description: 'CTR Impact Potential 1-5' },
+                    curiosityStars: { type: Type.NUMBER, description: 'Curiosity Factor 1-5' },
+                    visualAttentionStars: { type: Type.NUMBER, description: 'Visual Attention 1-5' },
+                    emotionalImpactStars: { type: Type.NUMBER, description: 'Emotional Impact 1-5' },
+                    abTestPriority: { type: Type.STRING, description: 'High, Medium, or Low' },
+                  },
+                  required: ['ctrPotentialStars', 'curiosityStars', 'visualAttentionStars', 'emotionalImpactStars', 'abTestPriority'],
+                },
+              },
+              required: ['alternativeTitle', 'thumbnailConcept', 'whyItsStronger', 'expectedImpact'],
+            },
+            aiImagePrompt: {
+              type: Type.STRING,
+              description: 'Comprehensive, highly detailed 16:9 English prompt for external AI image generators to render a high-CTR YouTube thumbnail.',
+            },
+          },
+          required: [
+            'overallCtrScore',
+            'ctrGrade',
+            'visualHierarchyScore',
+            'readabilityScore',
+            'emotionScore',
+            'focalPointScore',
+            'titleSynergyScore',
+            'summary',
+            'strengths',
+            'weaknesses',
+            'actionableTips',
+            'colorPsychologyAnalysis',
+            'textOverlayFeedback',
+            'faceExpressionFeedback',
+            'mobileFeedVisibility',
+            'suggestedABTestTitle',
+            'suggestedABTestThumbnailConcept',
+            'abTestDetails',
+            'aiImagePrompt',
+          ],
+        },
+      },
+    });
+
+    const resultText = response.text || '{}';
+    let parsedData: any;
+    try {
+      parsedData = JSON.parse(resultText);
+    } catch (parseErr) {
+      console.error('Failed to parse AI response JSON in analyze-thumbnail:', parseErr, resultText);
+      return res.status(502).json({
+        success: false,
+        error: 'Bad Gateway: Received invalid response structure from AI model. Please retry.',
+      });
+    }
+
+    const record = await rateLimitStore.increment(key, nextMidnight);
+    const remaining = Math.max(0, allowedLimit - record.count);
+
+    return res.status(200).json({
+      success: true,
+      data: parsedData,
+      quota: {
+        remaining,
+        limit: allowedLimit,
+        resetAt: new Date(record.resetTime).toISOString(),
+      },
+    });
+  } catch (error: any) {
+    console.error('Server error in analyze-thumbnail:', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message?.includes('GEMINI_API_KEY')
+        ? 'Server Configuration Error: GEMINI_API_KEY is not set.'
+        : 'An unexpected error occurred during thumbnail analysis. Please try again.',
+    });
+  }
+}
+
+// ============================================================================
+// HANDLER 2: /api/generate-thumbnail-concept
+// ============================================================================
+export async function handleGenerateThumbnailConceptRequest(req: any, res: any) {
+  if (handleCors(req, res)) return;
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method Not Allowed' });
+  }
+
+  try {
+    const authHeader = req.headers?.authorization || req.headers?.Authorization;
+    const authResult = await verifyAuthHeader(authHeader);
+    if (authResult.error) {
+      return res.status(401).json({ success: false, error: authResult.error });
+    }
+
+    const user = authResult.user;
+    const endpointPath = '/api/generate-thumbnail-concept';
+    const limits = TIER_LIMITS[endpointPath];
+
+    let key: string;
+    let allowedLimit: number;
+
+    if (user && user.id) {
+      key = `user:${user.id}:${endpointPath}`;
+      allowedLimit = user.tier === 'pro' ? limits.pro : limits.free;
+    } else {
+      const clientIp = getClientIp(req);
+      key = `ip:${clientIp}:${endpointPath}`;
+      allowedLimit = limits.unauthenticated;
+    }
+
+    const nextMidnight = getNextMidnightUtc();
+    const existing = await rateLimitStore.get(key);
+    const now = Date.now();
+
+    if (existing && now <= existing.resetTime && existing.count >= allowedLimit) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((existing.resetTime - now) / 1000));
+      return res.status(429).json({
+        success: false,
+        error: user
+          ? `Daily quota reached (${existing.count}/${allowedLimit} requests). Quota resets at midnight UTC.`
+          : `Unauthenticated daily limit reached (${existing.count}/${allowedLimit} requests). Please sign in for higher daily limits.`,
+        retryAfter: retryAfterSeconds,
+        quota: {
+          remaining: 0,
+          limit: allowedLimit,
+          resetAt: new Date(existing.resetTime).toISOString(),
+        },
+      });
+    }
+
+    let body: any;
+    try {
+      body = await parseBody(req);
+    } catch {
+      return res.status(400).json({ success: false, error: 'Invalid JSON body in request.' });
+    }
+
+    const rawTitle = sanitizeString(body.videoTitle, 300);
+    const rawTopic = sanitizeString(body.videoTopic, 2000);
+    const rawAudience = sanitizeString(body.targetAudience, 200);
+    const rawCategory = sanitizeString(body.category, 200);
+    const rawEmotion = sanitizeString(body.emotionGoal, 200);
+    const rawStyle = sanitizeString(body.customStyle, 300);
+
+    if (!rawTitle || !rawTopic) {
+      return res.status(400).json({ success: false, error: 'Video title and topic are required.' });
+    }
+
+    const titleCheck = sanitizeForPrompt(rawTitle);
+    const topicCheck = sanitizeForPrompt(rawTopic);
+    const audienceCheck = sanitizeForPrompt(rawAudience);
+    const categoryCheck = sanitizeForPrompt(rawCategory);
+    const emotionCheck = sanitizeForPrompt(rawEmotion);
+    const styleCheck = sanitizeForPrompt(rawStyle);
+
+    if (
+      !titleCheck.isValid ||
+      !topicCheck.isValid ||
+      !audienceCheck.isValid ||
+      !categoryCheck.isValid ||
+      !emotionCheck.isValid ||
+      !styleCheck.isValid
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid input detected: Disallowed instructions or keywords found in your request.',
+      });
+    }
+
+    const videoTitle = titleCheck.sanitized;
+    const videoTopic = topicCheck.sanitized;
+    const targetAudience = audienceCheck.sanitized;
+    const category = categoryCheck.sanitized;
+    const emotionGoal = emotionCheck.sanitized;
+    const customStyle = styleCheck.sanitized;
+
+    const ai = getGenAIClient();
+
+    const systemInstruction = `You are the world's top YouTube Thumbnail Design Director, CTR expert, and AI Prompt Engineer.
+Your task is to analyze the video title and topic to create a directly actionable, professional thumbnail design (AI Thumbnail Blueprint).
+
+Rules:
+- Accurately understand the video topic.
+- Do not create clickbait; remain faithful to the true video content.
+- Utilize human psychology (Curiosity Gap, visual hierarchy, contrast, color psychology, focal point).
+- Ensure the thumbnail captures attention in the first 1 second and meets top YouTube standards.
+- Generate a highly detailed, cinematic 16:9 English prompt (imagePromptForAI) for text-to-image AI generators (high contrast, no text/watermark).
+- CRITICAL: You MUST provide all generated explanations, titles, blueprints, tutorials, and alternatives in ENGLISH.`;
+
+    const userPrompt = `Video Title: "${videoTitle.replace(/"/g, '\\"')}"
+Video Summary: "${videoTopic.replace(/"/g, '\\"')}"
+Target Audience: "${targetAudience || 'General YouTube Audience'}"
+Category: "${category || 'General'}"
+Target Emotion: "${emotionGoal || 'Curiosity & Shock'}"
+Custom Style Preference: "${customStyle || 'Modern, high-contrast, cinematic lighting'}"`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.6-flash',
+      contents: userPrompt,
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            conceptTitle: { type: Type.STRING, description: 'Catchy name for this thumbnail concept' },
+            conceptRationale: { type: Type.STRING, description: 'Why this concept will get high CTR in English' },
+            textHookOnThumbnail: { type: Type.STRING, description: 'Max 2-4 word punchy text overlay on image' },
+            mainFocalSubject: { type: Type.STRING, description: 'What/who should be the center element' },
+            backgroundDescription: { type: Type.STRING, description: 'Background composition, blur level, lighting' },
+            colorPalette: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  hex: { type: Type.STRING },
+                  role: { type: Type.STRING },
+                  reason: { type: Type.STRING },
+                },
+                required: ['hex', 'role', 'reason'],
+              },
+            },
+            compositionSteps: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'Step by step how to arrange elements in Canva/Photoshop',
+            },
+            recommendedFontsAndEffects: { type: Type.STRING, description: 'Font styles, drop shadows, stroke outlines recommended' },
+            titleVariants: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: '3 high-CTR alternative YouTube titles that match this thumbnail',
+            },
+            imagePromptForAI: { type: Type.STRING, description: 'Detailed English prompt for text-to-image generator' },
+            blueprintDetails: {
+              type: Type.OBJECT,
+              description: 'Comprehensive AI Thumbnail Blueprint structure',
+              properties: {
+                generalConcept: { type: Type.STRING, description: '2-3 sentence concept overview in English' },
+                mainObject: {
+                  type: Type.OBJECT,
+                  properties: {
+                    size: { type: Type.STRING, description: 'Size' },
+                    position: { type: Type.STRING, description: 'Position' },
+                    pose: { type: Type.STRING, description: 'Pose' },
+                    facialExpression: { type: Type.STRING, description: 'Facial expression' },
+                    cameraAngle: { type: Type.STRING, description: 'Camera angle' },
+                    keyFeaturesToHighlight: { type: Type.STRING, description: 'Key features to highlight' },
+                  },
+                  required: ['size', 'position', 'pose', 'facialExpression', 'cameraAngle', 'keyFeaturesToHighlight'],
+                },
+                background: {
+                  type: Type.OBJECT,
+                  properties: {
+                    environment: { type: Type.STRING, description: 'Environment' },
+                    atmosphere: { type: Type.STRING, description: 'Atmosphere' },
+                    colors: { type: Type.STRING, description: 'Colors' },
+                    blurLevel: { type: Type.STRING, description: 'Blur level' },
+                    effects: { type: Type.STRING, description: 'Effects to apply' },
+                  },
+                  required: ['environment', 'atmosphere', 'colors', 'blurLevel', 'effects'],
+                },
+                lighting: {
+                  type: Type.OBJECT,
+                  properties: {
+                    mainLight: { type: Type.STRING, description: 'Main light' },
+                    rimLight: { type: Type.STRING, description: 'Rim light' },
+                    glow: { type: Type.STRING, description: 'Glow effect' },
+                    shadowAndContrast: { type: Type.STRING, description: 'Shadows & contrast' },
+                  },
+                  required: ['mainLight', 'rimLight', 'glow', 'shadowAndContrast'],
+                },
+                textOverlay: {
+                  type: Type.OBJECT,
+                  properties: {
+                    text: { type: Type.STRING, description: 'Text hook (max 2-4 words)' },
+                    fontType: { type: Type.STRING, description: 'Font family' },
+                    weight: { type: Type.STRING, description: 'Font weight' },
+                    color: { type: Type.STRING, description: 'Font color' },
+                    stroke: { type: Type.STRING, description: 'Outline / Stroke' },
+                    position: { type: Type.STRING, description: 'Position' },
+                    size: { type: Type.STRING, description: 'Font size' },
+                  },
+                  required: ['text', 'fontType', 'weight', 'color', 'stroke', 'position', 'size'],
+                },
+                colorPalette: {
+                  type: Type.OBJECT,
+                  properties: {
+                    primaryColors: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Primary colors' },
+                    accentColors: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Accent colors' },
+                    colorsToAvoid: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Colors to avoid' },
+                  },
+                  required: ['primaryColors', 'accentColors', 'colorsToAvoid'],
+                },
+                eyeTrackingPath: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: 'Eye tracking focus path',
+                },
+                psychologicalPrinciples: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      principle: { type: Type.STRING, description: 'Principle name' },
+                      reason: { type: Type.STRING, description: 'Explanation' },
+                    },
+                    required: ['principle', 'reason'],
+                  },
+                },
+                aiImagePromptEnglish: {
+                  type: Type.STRING,
+                  description: 'Ultra detailed cinematic 16:9 text-to-image English prompt',
+                },
+                whyItsStrongerPoints: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: 'Key reasons why this concept drives higher CTR',
+                },
+                expectedImpact: {
+                  type: Type.OBJECT,
+                  properties: {
+                    ctrPotentialStars: { type: Type.NUMBER, description: '1-5 stars' },
+                    curiosityStars: { type: Type.NUMBER, description: '1-5 stars' },
+                    visualAttentionStars: { type: Type.NUMBER, description: '1-5 stars' },
+                    emotionalImpactStars: { type: Type.NUMBER, description: '1-5 stars' },
+                    abTestPriority: { type: Type.STRING, description: 'High / Medium / Low' },
+                  },
+                  required: ['ctrPotentialStars', 'curiosityStars', 'visualAttentionStars', 'emotionalImpactStars', 'abTestPriority'],
+                },
+              },
+              required: [
+                'generalConcept',
+                'mainObject',
+                'background',
+                'lighting',
+                'textOverlay',
+                'colorPalette',
+                'eyeTrackingPath',
+                'psychologicalPrinciples',
+                'aiImagePromptEnglish',
+                'whyItsStrongerPoints',
+                'expectedImpact',
+              ],
+            },
+          },
+          required: [
+            'conceptTitle',
+            'conceptRationale',
+            'textHookOnThumbnail',
+            'mainFocalSubject',
+            'backgroundDescription',
+            'colorPalette',
+            'compositionSteps',
+            'recommendedFontsAndEffects',
+            'titleVariants',
+            'imagePromptForAI',
+            'blueprintDetails',
+          ],
+        },
+      },
+    });
+
+    const resultText = response.text || '{}';
+    let parsedData: any;
+    try {
+      parsedData = JSON.parse(resultText);
+    } catch (parseErr) {
+      console.error('Failed to parse AI response JSON in generate-thumbnail-concept:', parseErr, resultText);
+      return res.status(502).json({
+        success: false,
+        error: 'Bad Gateway: Received invalid response structure from AI model. Please retry.',
+      });
+    }
+
+    const record = await rateLimitStore.increment(key, nextMidnight);
+    const remaining = Math.max(0, allowedLimit - record.count);
+
+    return res.status(200).json({
+      success: true,
+      data: parsedData,
+      quota: {
+        remaining,
+        limit: allowedLimit,
+        resetAt: new Date(record.resetTime).toISOString(),
+      },
+    });
+  } catch (error: any) {
+    console.error('Server error in generate-thumbnail-concept:', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message?.includes('GEMINI_API_KEY')
+        ? 'Server Configuration Error: GEMINI_API_KEY is not set.'
+        : 'An unexpected error occurred while generating thumbnail concept. Please try again.',
+    });
+  }
+}
