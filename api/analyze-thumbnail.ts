@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleAnalyzeThumbnailRequest } from './_lib';
+import { handleAnalyzeThumbnailRequest } from './_lib.js';
 
 /**
  * Vercel Serverless Function Handler

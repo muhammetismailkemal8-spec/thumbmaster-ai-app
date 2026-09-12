@@ -8,6 +8,53 @@ interface ThumbnailFormProps {
   isLoading: boolean;
 }
 
+const MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_UPLOAD_IMAGE_BYTES = 2.25 * 1024 * 1024;
+const MAX_IMAGE_WIDTH = 1600;
+const MAX_IMAGE_HEIGHT = 900;
+
+const blobToDataUrl = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('The image could not be read.'));
+    reader.readAsDataURL(blob);
+  });
+
+async function prepareImageForUpload(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error('The image could not be decoded.'));
+      element.src = objectUrl;
+    });
+
+    const scale = Math.min(1, MAX_IMAGE_WIDTH / image.naturalWidth, MAX_IMAGE_HEIGHT / image.naturalHeight);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Image processing is unavailable in this browser.');
+
+    context.fillStyle = '#000000';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    for (const quality of [0.88, 0.8, 0.7, 0.6]) {
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+      if (blob && blob.size <= MAX_UPLOAD_IMAGE_BYTES) return blobToDataUrl(blob);
+    }
+
+    throw new Error('The image is still too large after optimization.');
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoading }) => {
   const { t, language } = useLanguage();
 
@@ -49,21 +96,21 @@ export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoadin
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const processImageFile = (file: File) => {
+  const processImageFile = async (file: File) => {
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
     if (!validTypes.includes(file.type)) {
       alert('Invalid file format. Please upload a JPEG, PNG, or WEBP image.');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
       alert(t.alertMax10mb);
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setThumbnailImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      setThumbnailImage(await prepareImageForUpload(file));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'The image could not be processed.');
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -365,4 +412,3 @@ export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoadin
     </div>
   );
 };
-

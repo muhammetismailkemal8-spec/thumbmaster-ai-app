@@ -153,26 +153,37 @@ export async function verifyAuthHeader(authHeader?: string): Promise<{ user?: Au
 // ============================================================================
 export function handleCors(req: any, res: any): boolean {
   const origin = (req.headers?.origin || req.headers?.Origin || '') as string;
-  const allowedOriginEnv = process.env.ALLOWED_ORIGIN;
+  const configuredOrigins = [process.env.ALLOWED_ORIGIN, process.env.APP_URL]
+    .filter(Boolean)
+    .flatMap((value) => value!.split(','))
+    .map((value) => value.trim().replace(/\/$/, ''));
 
   if (origin) {
-    const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
-    const isVercelApp = origin.includes('.vercel.app');
-    const isRunApp = origin.includes('.run.app');
-    const isExactMatch = allowedOriginEnv && (origin === allowedOriginEnv || allowedOriginEnv === '*');
-
-    if (process.env.NODE_ENV !== 'production' || !allowedOriginEnv || isExactMatch || isLocalhost || isVercelApp || isRunApp) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', allowedOriginEnv);
+    let originHost = '';
+    try {
+      originHost = new URL(origin).host;
+    } catch {
+      res.status(400).json({ success: false, error: 'Invalid request origin.' });
+      return true;
     }
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    const requestHost = String(req.headers?.['x-forwarded-host'] || req.headers?.host || '').split(',')[0].trim();
+    const isSameOrigin = Boolean(requestHost && originHost === requestHost);
+    const isConfiguredOrigin = configuredOrigins.includes(origin.replace(/\/$/, ''));
+    const isLocalDevelopment = process.env.NODE_ENV !== 'production' && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(originHost);
+
+    if (!isSameOrigin && !isConfiguredOrigin && !isLocalDevelopment) {
+      res.status(403).json({ success: false, error: 'Origin not allowed.' });
+      return true;
+    }
+
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
   }
 
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -199,6 +210,10 @@ export async function parseBody(req: any): Promise<any> {
     let raw = '';
     req.on('data', (chunk: any) => {
       raw += chunk;
+      if (raw.length > 4 * 1024 * 1024) {
+        reject(new Error('Request payload too large'));
+        req.destroy?.();
+      }
     });
     req.on('end', () => {
       if (!raw || raw.trim().length === 0) {
@@ -267,13 +282,17 @@ export function sanitizeForPrompt(input: string): { isValid: boolean; sanitized:
 
 export function validateAndParseBase64Image(imageBase64: unknown): { mimeType: string; data: string } | null {
   if (typeof imageBase64 !== 'string' || !imageBase64) return null;
-  if (imageBase64.length > 15 * 1024 * 1024) return null; // Reject oversized base64 strings (>15MB)
+  // Keep the complete JSON request comfortably below Vercel's serverless body limit.
+  if (imageBase64.length > 3.5 * 1024 * 1024) return null;
 
   const matches = imageBase64.match(/^data:(image\/(jpeg|png|webp|jpg));base64,([A-Za-z0-9+/=]+)$/);
   if (!matches || matches.length !== 4) return null;
 
   const mimeType = matches[1] === 'image/jpg' ? 'image/jpeg' : matches[1];
   const data = matches[3];
+  const padding = data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0;
+  const decodedBytes = Math.floor((data.length * 3) / 4) - padding;
+  if (decodedBytes > 2.5 * 1024 * 1024) return null;
   return { mimeType, data };
 }
 
@@ -378,7 +397,7 @@ export async function handleAnalyzeThumbnailRequest(req: any, res: any) {
     if (rawImage && !parsedImage) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid thumbnail image format. Please upload a valid JPEG, PNG, or WEBP image under 10MB.',
+        error: 'Invalid thumbnail image. Please upload a valid JPEG, PNG, or WEBP file.',
       });
     }
 

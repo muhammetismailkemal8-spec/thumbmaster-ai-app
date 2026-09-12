@@ -1,13 +1,12 @@
 import express from 'express';
 import path from 'path';
-import cors from 'cors';
 import helmet from 'helmet';
 import { createServer as createViteServer } from 'vite';
 import {
   handleAnalyzeThumbnailRequest,
   handleGenerateThumbnailConceptRequest,
   handleCors,
-} from './api/_lib';
+} from './api/_lib.js';
 
 const app = express();
 const PORT = 3000;
@@ -18,12 +17,7 @@ app.set('trust proxy', 1);
 // ============================================================================
 // 1. SECURITY HEADERS (Helmet)
 // ============================================================================
-app.use(
-  helmet({
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false,
-  })
-);
+app.use(helmet());
 
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -34,41 +28,11 @@ app.use((_req, res, next) => {
   next();
 });
 
-// ============================================================================
-// 2. CORS MIDDLEWARE FOR /api/
-// ============================================================================
-const allowedOrigins = [
-  process.env.ALLOWED_ORIGIN,
-  process.env.APP_URL,
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:5173',
-].filter(Boolean) as string[];
-
-const apiCors = cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-
-    if (
-      process.env.NODE_ENV !== 'production' ||
-      !process.env.ALLOWED_ORIGIN ||
-      origin === process.env.ALLOWED_ORIGIN ||
-      allowedOrigins.includes(origin) ||
-      origin.includes('.run.app') ||
-      origin.includes('.vercel.app') ||
-      origin.includes('localhost') ||
-      origin.includes('127.0.0.1')
-    ) {
-      return callback(null, true);
-    }
-
-    return callback(null, false);
-  },
-  methods: ['POST', 'GET', 'OPTIONS'],
-  credentials: true,
+// Apply the same CORS policy locally and in Vercel serverless functions.
+app.use('/api/', (req, res, next) => {
+  if (handleCors(req, res)) return;
+  next();
 });
-
-app.use('/api/', apiCors);
 
 // JSON Body Parser with explicit size limit (max 15MB for base64 thumbnails)
 app.use(express.json({ limit: '15mb' }));
@@ -91,7 +55,7 @@ app.post('/api/generate-thumbnail-concept', async (req, res) => {
 });
 
 // Fallback 404 for unhandled API routes
-app.all('/api/*', (_req, res) => {
+app.all(/^\/api(?:\/.*)?$/, (_req, res) => {
   res.status(404).json({
     success: false,
     error: 'API endpoint not found',
@@ -128,7 +92,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
+    app.get(/.*/, (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

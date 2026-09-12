@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleGenerateThumbnailConceptRequest } from './_lib';
+import { handleGenerateThumbnailConceptRequest } from './_lib.js';
 
 /**
  * Vercel Serverless Function Handler
