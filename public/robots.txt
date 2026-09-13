@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://thumbmaster-ai-app.vercel.app/sitemap.xml
