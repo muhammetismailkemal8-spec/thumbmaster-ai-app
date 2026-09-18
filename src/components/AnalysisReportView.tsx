@@ -114,41 +114,133 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
             <div className={`mt-2 px-3 py-0.5 text-xs font-extrabold rounded-full border bg-slate-900 ${getGradeColor(data.ctrGrade)}`}>
               {t.gradeLabel}: {data.ctrGrade}
             </div>
+            {data.isCapped && (
+              <span className="mt-1.5 text-[10px] text-amber-400/90 font-mono bg-amber-950/60 border border-amber-800/50 px-2 py-0.5 rounded text-center">
+                Capped (raw: {data.rawScore})
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      {/* 5-Criteria Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      {/* Prominent Title–Thumbnail Mismatch Warning (Requirement 6) */}
+      {(((data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 100) < 40) || Boolean(data.alignmentWarning)) && (
+        <div className="bg-rose-950/90 rounded-2xl border-2 border-rose-500/80 p-5 sm:p-6 shadow-2xl relative overflow-hidden animate-in fade-in">
+          <div className="flex items-start space-x-4">
+            <div className="p-3 bg-rose-500/20 rounded-xl border border-rose-500/40 shrink-0 text-rose-400 mt-0.5">
+              <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
+            </div>
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-base sm:text-lg font-bold text-rose-100 flex items-center gap-2">
+                  <span>Critical Title–Thumbnail Mismatch Detected</span>
+                </h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs bg-rose-900/80 text-rose-300 font-bold px-2.5 py-1 rounded-md border border-rose-700/60">
+                    Alignment: {data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 0}/100
+                  </span>
+                  {data.isCapped && (
+                    <span className="text-xs bg-amber-950/90 text-amber-300 font-bold px-2.5 py-1 rounded-md border border-amber-700/60">
+                      Capped at {data.overallCtrScore}/100
+                    </span>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs sm:text-sm text-rose-200 leading-relaxed">
+                {data.alignmentWarning ||
+                  'The thumbnail imagery and video title likely represent completely different videos or unrelated topics. A thumbnail that does not match the video premise triggers immediate viewer abandonment, severe retention drops, and algorithmic penalties on YouTube.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5-Criteria Deterministic Metrics Grid (Requirements 1, 3, 8) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: t.metricHierarchy, score: data.visualHierarchyScore, icon: Award },
-          { label: t.metricReadability, score: data.readabilityScore, icon: TypeIcon },
-          { label: t.metricEmotion, score: data.emotionScore, icon: Flame },
-          { label: t.metricFocalPoint, score: data.focalPointScore, icon: Eye },
-          { label: t.metricSynergy, score: data.titleSynergyScore, icon: Sparkles },
+          {
+            label: 'Visual Impact',
+            weight: '20%',
+            score: data.visualImpact ?? data.visualHierarchyScore ?? 0,
+            icon: Award,
+            desc: 'Contrast & punch',
+          },
+          {
+            label: 'Readability',
+            weight: '15%',
+            score: data.readability ?? data.readabilityScore ?? 0,
+            icon: TypeIcon,
+            desc: 'Mobile legibility',
+          },
+          {
+            label: 'Curiosity',
+            weight: '20%',
+            score: data.curiosity ?? data.emotionScore ?? 0,
+            icon: Flame,
+            desc: 'Intrigue & hook',
+          },
+          {
+            label: 'Clarity',
+            weight: '15%',
+            score: data.clarity ?? data.focalPointScore ?? 0,
+            icon: Eye,
+            desc: 'Fast comprehension',
+          },
+          {
+            label: 'Title Alignment',
+            weight: '30%',
+            score: data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 0,
+            icon: Sparkles,
+            desc: (data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 0) < 40 ? 'Severe Mismatch' : 'Topic congruence',
+            isWarning: (data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 0) < 40,
+          },
         ].map((metric, idx) => (
-          <div key={idx} className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+          <div
+            key={idx}
+            className={`p-4 rounded-xl border space-y-2.5 transition-all ${
+              metric.isWarning
+                ? 'bg-rose-950/50 border-rose-500/60 shadow-lg shadow-rose-950/40'
+                : 'bg-slate-900/80 border-slate-800'
+            }`}
+          >
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="font-semibold text-slate-300">{metric.label}</span>
-              <metric.icon className="w-4 h-4 text-slate-500" />
+              <span className={`font-semibold ${metric.isWarning ? 'text-rose-300' : 'text-slate-300'}`}>
+                {metric.label}
+              </span>
+              <metric.icon className={`w-4 h-4 ${metric.isWarning ? 'text-rose-400' : 'text-slate-500'}`} />
             </div>
+
             <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold text-white">{metric.score}</span>
-              <span className="text-[10px] text-slate-500">%</span>
+              <div className="flex items-baseline space-x-1">
+                <span className={`text-2xl font-bold ${metric.isWarning ? 'text-rose-200' : 'text-white'}`}>
+                  {metric.score}
+                </span>
+                <span className="text-[10px] text-slate-500">/100</span>
+              </div>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+                {metric.weight}
+              </span>
             </div>
+
             {/* Progress Bar */}
             <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full ${
-                  metric.score >= 80
+                className={`h-full rounded-full transition-all ${
+                  metric.isWarning || metric.score < 40
+                    ? 'bg-rose-500'
+                    : metric.score >= 80
                     ? 'bg-emerald-500'
                     : metric.score >= 60
                     ? 'bg-amber-500'
                     : 'bg-rose-500'
                 }`}
-                style={{ width: `${metric.score}%` }}
+                style={{ width: `${Math.max(3, Math.min(100, metric.score))}%` }}
               />
             </div>
+
+            <p className={`text-[10px] truncate ${metric.isWarning ? 'text-rose-400 font-medium' : 'text-slate-500'}`}>
+              {metric.desc}
+            </p>
           </div>
         ))}
       </div>
