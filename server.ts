@@ -54,10 +54,6 @@ app.post('/api/generate-thumbnail-concept', async (req, res) => {
   await handleGenerateThumbnailConceptRequest(req, res);
 });
 
-app.post('/api/generate-thumbnail', async (req, res) => {
-  await handleGenerateThumbnailConceptRequest(req, res);
-});
-
 // Fallback 404 for unhandled API routes
 app.all(/^\/api(?:\/.*)?$/, (_req, res) => {
   res.status(404).json({

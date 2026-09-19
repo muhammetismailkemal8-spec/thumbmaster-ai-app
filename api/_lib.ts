@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 /**
@@ -81,11 +81,6 @@ export const TIER_LIMITS: Record<string, { unauthenticated: number; free: number
     pro: 200,           // Authenticated Pro user
   },
   '/api/generate-thumbnail-concept': {
-    unauthenticated: 30, // Free daily trial quota per IP
-    free: 50,            // Authenticated free user
-    pro: 200,           // Authenticated Pro user
-  },
-  '/api/generate-thumbnail': {
     unauthenticated: 30, // Free daily trial quota per IP
     free: 50,            // Authenticated free user
     pro: 200,           // Authenticated Pro user
@@ -301,116 +296,12 @@ export function validateAndParseBase64Image(imageBase64: unknown): { mimeType: s
   return { mimeType, data };
 }
 
-export function normalizeCategoryScore(val: unknown, defaultValue = 50): number {
-  if (val === null || val === undefined) return defaultValue;
-  let num: number;
-  if (typeof val === 'number') {
-    num = val;
-  } else if (typeof val === 'string') {
-    num = parseFloat(val);
-  } else {
-    return defaultValue;
-  }
-  if (!Number.isFinite(num) || Number.isNaN(num)) {
-    return defaultValue;
-  }
-  return Math.max(0, Math.min(100, Math.round(num)));
-}
-
-export function calculateCtrGrade(score: number): string {
-  if (score >= 90) return 'A+';
-  if (score >= 80) return 'A';
-  if (score >= 70) return 'B';
-  if (score >= 60) return 'C';
-  if (score >= 50) return 'D';
-  return 'F';
-}
-
-export function cleanAndParseJson(rawText: string): any {
-  let cleaned = rawText.trim();
-  if (cleaned.startsWith('```json')) {
-    cleaned = cleaned.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
-  } else if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
-  }
-  return JSON.parse(cleaned);
-}
-
 export function getGenAIClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY environment variable is missing on the server.');
   }
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
-}
-
-export interface GenAIFallbackOptions {
-  systemInstruction?: string;
-  contents: any;
-  responseSchema?: any;
-  responseMimeType?: string;
-}
-
-export async function generateContentWithFallback(
-  ai: GoogleGenAI,
-  options: GenAIFallbackOptions,
-  operationName: string
-): Promise<string> {
-  const candidateModels: Array<{ model: string; thinkingLevel?: ThinkingLevel }> = [
-    { model: 'gemini-3.8-flash', thinkingLevel: ThinkingLevel.LOW },
-    { model: 'gemini-3.1-flash-lite', thinkingLevel: ThinkingLevel.MINIMAL },
-    { model: 'gemini-flash-latest', thinkingLevel: undefined },
-  ];
-
-  let lastError: any = null;
-
-  for (let i = 0; i < candidateModels.length; i++) {
-    const { model, thinkingLevel } = candidateModels[i];
-    try {
-      const config: any = {};
-      if (options.systemInstruction) {
-        config.systemInstruction = options.systemInstruction;
-      }
-      if (options.responseMimeType) {
-        config.responseMimeType = options.responseMimeType;
-      }
-      if (options.responseSchema) {
-        config.responseSchema = options.responseSchema;
-      }
-      if (thinkingLevel !== undefined) {
-        config.thinkingConfig = { thinkingLevel };
-      }
-
-      const response = await ai.models.generateContent({
-        model,
-        contents: options.contents,
-        config,
-      });
-
-      const text = response.text;
-      if (text && text.trim().length > 0) {
-        return text.trim();
-      }
-      throw new Error(`Model ${model} returned an empty text payload.`);
-    } catch (err: any) {
-      lastError = err;
-      const status = err?.status || err?.code || 'unknown';
-      console.warn(`[${operationName}] Model ${model} failed (status: ${status}): ${err?.message}`);
-      if (i < candidateModels.length - 1) {
-        console.warn(`[${operationName}] Switching to fallback model: ${candidateModels[i + 1].model}...`);
-        await new Promise((resolve) => setTimeout(resolve, 350));
-      }
-    }
-  }
-
-  throw lastError;
+  return new GoogleGenAI({ apiKey });
 }
 
 // ============================================================================
@@ -513,22 +404,16 @@ export async function handleAnalyzeThumbnailRequest(req: any, res: any) {
     const ai = getGenAIClient();
 
     const systemInstruction = `You are one of the world's best YouTube thumbnail and title optimization experts (a senior CTR director familiar with the psychological strategies of top creators like MrBeast, Veritasium, Kurzgesagt, Ali Abdaal, and Cleo Abram).
-Your job is to analyze the uploaded thumbnail and video title to evaluate its CTR potential and create an actionable optimization proposal.
+Your job is to analyze the uploaded thumbnail and video title to create a high-converting, professional A/B test proposal with actionable recommendations.
 
-CRITICAL SCORING RULES:
-You must return 5 separate numeric category scores on a strict 0 to 100 scale:
-1. visualImpact (0-100, 20% weight): Visual punch, contrast, saturation, lighting, subject separation, focal dominance, and color vibrancy.
-2. readability (0-100, 15% weight): Text legibility, font weight, contrast against background, and how quickly it reads on small mobile screens. (If no text is used, evaluate how clearly the visual subject communicates without text).
-3. curiosity (0-100, 20% weight): Curiosity gap, intrigue, emotion, and viewer desire to click without misleading clickbait.
-4. clarity (0-100, 15% weight): Cognitive ease, clean composition, lack of visual clutter, and instant comprehension within 500ms.
-5. titleThumbnailAlignment (0-100, 30% weight): Objective thematic, narrative, and contextual match between what is visually shown in the thumbnail and what the video title and topic actually promise.
-   - MANDATORY STRICTNESS RULE: If the thumbnail depicts imagery completely unrelated or contradictory to the video title (for example, a survival scenario with scorpions/snakes for a title about fulfilling children's dreams, or gaming graphics for a personal finance video), you MUST score titleThumbnailAlignment strictly between 0 and 25.
-   - Do NOT give high alignment if the imagery belongs to a completely different video topic.
-   - High scores (75-100) are reserved strictly for thumbnails that visually reinforce the exact premise and promise of the video title.
-
-DO NOT invent or return an overall CTR score or grade. The backend calculation engine deterministically computes the overall CTR score and grade using your 5 category scores.
-
-CRITICAL LANGUAGE RULE: You MUST provide all generated explanations, titles, summaries, feedback points, blueprints, and step-by-step guides in ENGLISH.`;
+Rules:
+1. Accurately understand the core topic of the video.
+2. Do not generate clickbait. Create curiosity ("Curiosity Gap") without being misleading.
+3. Recommendations must align 100% with the actual video content.
+4. Apply psychological principles used by top YouTube channels (Curiosity Gap, high contrast, emotional hook, focal hierarchy).
+5. Account for curiosity gaps, color contrast, emotional hooks, visual focal point, and hierarchy.
+6. If the current thumbnail is already strong, propose a distinctly different angle or concept rather than minor tweaks.
+7. CRITICAL: You MUST provide all generated explanations, titles, summaries, feedback points, blueprints, and step-by-step guides in ENGLISH.`;
 
     let userPrompt = `Video Title: "${videoTitle.replace(/"/g, '\\"')}"
 Video Topic / Summary: "${videoTopic.replace(/"/g, '\\"')}"
@@ -551,20 +436,22 @@ Category / Niche: "${category || 'General'}"`;
 
     parts.push({ text: userPrompt });
 
-    const resultText = await generateContentWithFallback(
-      ai,
-      {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.6-flash',
+      contents: { parts },
+      config: {
         systemInstruction,
-        contents: { parts },
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            visualImpact: { type: Type.NUMBER, description: 'Visual impact & contrast score between 0 and 100' },
-            readability: { type: Type.NUMBER, description: 'Readability score between 0 and 100' },
-            curiosity: { type: Type.NUMBER, description: 'Curiosity gap score between 0 and 100' },
-            clarity: { type: Type.NUMBER, description: 'Clarity and composition score between 0 and 100' },
-            titleThumbnailAlignment: { type: Type.NUMBER, description: 'Title-thumbnail semantic alignment score between 0 and 100. Must be 0-25 if unrelated.' },
+            overallCtrScore: { type: Type.NUMBER, description: 'Overall CTR potential score between 0 and 100' },
+            ctrGrade: { type: Type.STRING, description: 'Grade like A+, A, B, C, D' },
+            visualHierarchyScore: { type: Type.NUMBER, description: 'Score between 0 and 100' },
+            readabilityScore: { type: Type.NUMBER, description: 'Score between 0 and 100' },
+            emotionScore: { type: Type.NUMBER, description: 'Score between 0 and 100' },
+            focalPointScore: { type: Type.NUMBER, description: 'Score between 0 and 100' },
+            titleSynergyScore: { type: Type.NUMBER, description: 'Score between 0 and 100' },
             summary: { type: Type.STRING, description: 'Comprehensive 2-3 paragraph breakdown in English' },
             strengths: {
               type: Type.ARRAY,
@@ -635,11 +522,13 @@ Category / Niche: "${category || 'General'}"`;
             },
           },
           required: [
-            'visualImpact',
-            'readability',
-            'curiosity',
-            'clarity',
-            'titleThumbnailAlignment',
+            'overallCtrScore',
+            'ctrGrade',
+            'visualHierarchyScore',
+            'readabilityScore',
+            'emotionScore',
+            'focalPointScore',
+            'titleSynergyScore',
             'summary',
             'strengths',
             'weaknesses',
@@ -655,123 +544,18 @@ Category / Niche: "${category || 'General'}"`;
           ],
         },
       },
-      'analyze-thumbnail'
-    );
+    });
 
+    const resultText = response.text || '{}';
     let parsedData: any;
     try {
-      parsedData = cleanAndParseJson(resultText);
+      parsedData = JSON.parse(resultText);
     } catch (parseErr) {
       console.error('Failed to parse AI response JSON in analyze-thumbnail:', parseErr, resultText);
       return res.status(502).json({
         success: false,
         error: 'Bad Gateway: Received invalid response structure from AI model. Please retry.',
       });
-    }
-
-    // ========================================================================
-    // DETERMINISTIC CTR SCORING ENGINE WITH ALIGNMENT CAPS
-    // ========================================================================
-    const rawVisual = parsedData.visualImpact ?? parsedData.visualHierarchyScore;
-    const rawReadability = parsedData.readability ?? parsedData.readabilityScore;
-    const rawCuriosity = parsedData.curiosity ?? parsedData.emotionScore;
-    const rawClarity = parsedData.clarity ?? parsedData.focalPointScore;
-    const rawAlignment = parsedData.titleThumbnailAlignment ?? parsedData.titleSynergyScore;
-
-    // Detect if the model output scores on a 0-10 scale (e.g. all provided scores <= 10)
-    const validScores = [rawVisual, rawReadability, rawCuriosity, rawClarity, rawAlignment]
-      .map((v) => (typeof v === 'number' ? v : parseFloat(v)))
-      .filter((v) => !Number.isNaN(v));
-    const isTenScale = validScores.length > 0 && Math.max(...validScores) <= 10;
-    const scaleMultiplier = isTenScale ? 10 : 1;
-
-    // Requirement 7: Reject / safely normalize invalid or out-of-range scores
-    const visualImpact = normalizeCategoryScore(rawVisual != null ? rawVisual * scaleMultiplier : null, 50);
-    const readability = normalizeCategoryScore(rawReadability != null ? rawReadability * scaleMultiplier : null, 50);
-    const curiosity = normalizeCategoryScore(rawCuriosity != null ? rawCuriosity * scaleMultiplier : null, 50);
-    const clarity = normalizeCategoryScore(rawClarity != null ? rawClarity * scaleMultiplier : null, 50);
-    const titleThumbnailAlignment = normalizeCategoryScore(rawAlignment != null ? rawAlignment * scaleMultiplier : null, 50);
-
-    // Requirement 3: Deterministic score calculation
-    // rawScore = visualImpact * 0.20 + readability * 0.15 + curiosity * 0.20 + clarity * 0.15 + titleThumbnailAlignment * 0.30
-    const rawScore =
-      visualImpact * 0.20 +
-      readability * 0.15 +
-      curiosity * 0.20 +
-      clarity * 0.15 +
-      titleThumbnailAlignment * 0.30;
-
-    // Requirement 4: Mandatory alignment caps
-    // - alignment below 20: final score maximum 35
-    // - alignment below 40: final score maximum 50
-    // - alignment below 60: final score maximum 65
-    let finalScore = rawScore;
-    let isCapped = false;
-    let appliedCap: number | null = null;
-
-    if (titleThumbnailAlignment < 20) {
-      if (finalScore > 35) {
-        finalScore = 35;
-        isCapped = true;
-        appliedCap = 35;
-      }
-    } else if (titleThumbnailAlignment < 40) {
-      if (finalScore > 50) {
-        finalScore = 50;
-        isCapped = true;
-        appliedCap = 50;
-      }
-    } else if (titleThumbnailAlignment < 60) {
-      if (finalScore > 65) {
-        finalScore = 65;
-        isCapped = true;
-        appliedCap = 65;
-      }
-    }
-
-    const overallCtrScore = Math.max(0, Math.min(100, Math.round(finalScore)));
-    const roundedRawScore = Math.max(0, Math.min(100, Math.round(rawScore)));
-
-    // Requirement 5: Grade must be calculated only after applying the cap
-    const ctrGrade = calculateCtrGrade(overallCtrScore);
-
-    // Requirement 6: If alignment is below 40, include a prominent warning
-    let alignmentWarning: string | null = null;
-    if (titleThumbnailAlignment < 40) {
-      alignmentWarning =
-        'Critical Title–Thumbnail Mismatch: The thumbnail and video title appear to represent completely different videos or unrelated subjects. A mismatched thumbnail creates extreme viewer drop-off, destroys viewer trust, and severely depresses CTR.';
-    }
-
-    // Attach deterministic scores to response
-    parsedData.visualImpact = visualImpact;
-    parsedData.readability = readability;
-    parsedData.curiosity = curiosity;
-    parsedData.clarity = clarity;
-    parsedData.titleThumbnailAlignment = titleThumbnailAlignment;
-    parsedData.rawScore = roundedRawScore;
-    parsedData.overallCtrScore = overallCtrScore;
-    parsedData.ctrGrade = ctrGrade;
-    parsedData.isCapped = isCapped;
-    parsedData.appliedCap = appliedCap;
-    parsedData.alignmentWarning = alignmentWarning;
-
-    // Backwards compatibility aliases
-    parsedData.visualHierarchyScore = visualImpact;
-    parsedData.readabilityScore = readability;
-    parsedData.emotionScore = curiosity;
-    parsedData.focalPointScore = clarity;
-    parsedData.titleSynergyScore = titleThumbnailAlignment;
-
-    // Prepend mismatch warning to weaknesses if not already present
-    if (alignmentWarning && Array.isArray(parsedData.weaknesses)) {
-      const alreadyWarned = parsedData.weaknesses.some((w: string) =>
-        w.toLowerCase().includes('mismatch') || w.toLowerCase().includes('alignment') || w.toLowerCase().includes('unrelated')
-      );
-      if (!alreadyWarned) {
-        parsedData.weaknesses.unshift(
-          `Severe Title–Thumbnail Mismatch (${titleThumbnailAlignment}/100 alignment): The thumbnail visuals do not match the promised video topic and appear to belong to an unrelated video.`
-        );
-      }
     }
 
     const record = await rateLimitStore.increment(key, nextMidnight);
@@ -788,29 +572,11 @@ Category / Niche: "${category || 'General'}"`;
     });
   } catch (error: any) {
     console.error('Server error in analyze-thumbnail:', error);
-    let errorMessage = 'An unexpected error occurred during thumbnail analysis. Please try again.';
-    if (error?.message?.includes('GEMINI_API_KEY')) {
-      errorMessage = 'Server Configuration Error: GEMINI_API_KEY is not set.';
-    } else if (
-      error?.status === 503 ||
-      error?.message?.includes('503') ||
-      error?.message?.includes('high demand') ||
-      error?.message?.includes('UNAVAILABLE')
-    ) {
-      errorMessage = 'The AI service is experiencing temporarily high traffic. Please wait a moment and try again.';
-    } else if (
-      error?.status === 429 ||
-      error?.message?.includes('429') ||
-      error?.message?.includes('RESOURCE_EXHAUSTED')
-    ) {
-      errorMessage = 'AI rate limit reached. Please wait a moment and try again.';
-    } else if (error?.message) {
-      errorMessage = `Thumbnail analysis failed: ${error.message}`;
-    }
-
     return res.status(500).json({
       success: false,
-      error: errorMessage,
+      error: error?.message?.includes('GEMINI_API_KEY')
+        ? 'Server Configuration Error: GEMINI_API_KEY is not set.'
+        : 'An unexpected error occurred during thumbnail analysis. Please try again.',
     });
   }
 }
@@ -934,11 +700,11 @@ Category: "${category || 'General'}"
 Target Emotion: "${emotionGoal || 'Curiosity & Shock'}"
 Custom Style Preference: "${customStyle || 'Modern, high-contrast, cinematic lighting'}"`;
 
-    const resultText = await generateContentWithFallback(
-      ai,
-      {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.6-flash',
+      contents: userPrompt,
+      config: {
         systemInstruction,
-        contents: userPrompt,
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -1099,12 +865,12 @@ Custom Style Preference: "${customStyle || 'Modern, high-contrast, cinematic lig
           ],
         },
       },
-      'generate-thumbnail-concept'
-    );
+    });
 
+    const resultText = response.text || '{}';
     let parsedData: any;
     try {
-      parsedData = cleanAndParseJson(resultText);
+      parsedData = JSON.parse(resultText);
     } catch (parseErr) {
       console.error('Failed to parse AI response JSON in generate-thumbnail-concept:', parseErr, resultText);
       return res.status(502).json({
@@ -1127,29 +893,11 @@ Custom Style Preference: "${customStyle || 'Modern, high-contrast, cinematic lig
     });
   } catch (error: any) {
     console.error('Server error in generate-thumbnail-concept:', error);
-    let errorMessage = 'An unexpected error occurred while generating thumbnail concept. Please try again.';
-    if (error?.message?.includes('GEMINI_API_KEY')) {
-      errorMessage = 'Server Configuration Error: GEMINI_API_KEY is not set.';
-    } else if (
-      error?.status === 503 ||
-      error?.message?.includes('503') ||
-      error?.message?.includes('high demand') ||
-      error?.message?.includes('UNAVAILABLE')
-    ) {
-      errorMessage = 'The AI service is experiencing temporarily high traffic. Please wait a moment and try again.';
-    } else if (
-      error?.status === 429 ||
-      error?.message?.includes('429') ||
-      error?.message?.includes('RESOURCE_EXHAUSTED')
-    ) {
-      errorMessage = 'AI rate limit exceeded. Please wait a moment and try again.';
-    } else if (error?.message) {
-      errorMessage = `Thumbnail generation failed: ${error.message}`;
-    }
-
     return res.status(500).json({
       success: false,
-      error: errorMessage,
+      error: error?.message?.includes('GEMINI_API_KEY')
+        ? 'Server Configuration Error: GEMINI_API_KEY is not set.'
+        : 'An unexpected error occurred while generating thumbnail concept. Please try again.',
     });
   }
 }

@@ -46,25 +46,11 @@ export interface AnalysisResult {
   timestamp?: number;
   overallCtrScore: number;
   ctrGrade: string;
-  rawScore?: number;
-  isCapped?: boolean;
-  appliedCap?: number | null;
-  alignmentWarning?: string | null;
-
-  // 5 Category Scores
-  visualImpact?: number;
-  readability?: number;
-  curiosity?: number;
-  clarity?: number;
-  titleThumbnailAlignment?: number;
-
-  // Legacy metric aliases
-  visualHierarchyScore?: number;
-  readabilityScore?: number;
-  emotionScore?: number;
-  focalPointScore?: number;
-  titleSynergyScore?: number;
-
+  visualHierarchyScore: number;
+  readabilityScore: number;
+  emotionScore: number;
+  focalPointScore: number;
+  titleSynergyScore: number;
   summary: string;
   strengths: string[];
   weaknesses: string[];
