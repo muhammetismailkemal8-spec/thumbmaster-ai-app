@@ -52,8 +52,8 @@ export const IDEA_ANALYSIS_DATA = {
       impact: "Medium" as const
     },
     {
-      subtitle: "Visual Eye-Tracking Heatmap Simulation",
-      description: "Generates an artificial eye-tracking overlay showing where viewers' eyes focus in the first 1.5 seconds.",
+      subtitle: "Visual Saliency & Attention Flow Simulation",
+      description: "Generates an estimated visual saliency overlay indicating predicted areas of visual contrast and focal points in the composition.",
       impact: "High" as const
     }
   ],

@@ -209,7 +209,7 @@ export const ConceptGuideView: React.FC<ConceptGuideViewProps> = ({
             </div>
           </div>
           <span className="text-xs bg-rose-500/20 text-rose-300 border border-rose-500/40 px-3 py-1 rounded-full font-bold">
-            High-CTR Standards
+            Candidate Concept
           </span>
         </div>
 
@@ -429,7 +429,7 @@ export const ConceptGuideView: React.FC<ConceptGuideViewProps> = ({
         {/* Tag pills */}
         <div className="flex flex-wrap gap-2 text-[10px] font-mono text-slate-400">
           <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">--ar 16:9</span>
-          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">High CTR</span>
+          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">High Visual Contrast</span>
           <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">No Watermark</span>
           <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">No Text</span>
           <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">Cinematic Lighting</span>

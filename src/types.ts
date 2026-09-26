@@ -15,6 +15,20 @@ export interface ColorPaletteItem {
   reason: string;
 }
 
+export interface PrioritizedImprovement {
+  observation: string;
+  suggestedAction: string;
+  reason: string;
+  tradeoffOrUncertainty: string;
+}
+
+export interface HypothesisAnalysis {
+  specificChange: string;
+  whyItMightHelp: string;
+  whatItMightWeaken: string;
+  testComparison: string;
+}
+
 export interface ABTestDetails {
   alternativeTitle: string;
   thumbnailConcept: {
@@ -27,30 +41,110 @@ export interface ABTestDetails {
     focalPoint: string;
     targetEmotion: string;
   };
-  whyItsStronger: {
-    attentionReason: string;
-    psychologicalPrinciples: string;
-    firstTwoSecondsImpact: string;
+  hypothesisAnalysis?: HypothesisAnalysis;
+  whyItsStronger?: {
+    attentionReason?: string;
+    psychologicalPrinciples?: string;
+    firstTwoSecondsImpact?: string;
   };
   expectedImpact: {
-    ctrPotentialStars: number;
-    curiosityStars: number;
-    visualAttentionStars: number;
-    emotionalImpactStars: number;
+    variableTested?: string;
+    confidenceLevel?: 'Exploratory' | 'Moderate' | 'High' | string;
+    primaryMetricToWatch?: string;
+    tradeoffOrRisk?: string;
     abTestPriority: 'High' | 'Medium' | 'Low' | string;
+    ctrPotentialStars?: number;
+    curiosityStars?: number;
+    visualAttentionStars?: number;
+    emotionalImpactStars?: number;
   };
+}
+
+export interface EvolutionaryTriggerItem {
+  triggerName: string;
+  score: number;
+  status: 'OPTIMAL' | 'MODERATE' | 'UNDERUTILIZED' | 'OVERSTIMULATING' | string;
+  analysis: string;
+  psychologicalContext?: string;
+  evolutionaryMechanism?: string;
+}
+
+export interface PerceptionManagementDetails {
+  // Grounded viewer psychology and attention fields
+  visualAttentionHeuristicScore?: number;
+  compositionClarityScore?: number;
+  immediateGlanceImpression?: string;
+  estimatedVisualFlow?: string[];
+  prioritizedDesignSuggestions?: string[];
+
+  // Backward compatibility aliases
+  primitiveBrainScore: number;
+  perceptionManagementScore: number;
+  first50msGistComprehension: string;
+  cognitiveLoadVerdict: 'OPTIMAL_MINIMALIST' | 'BALANCED' | 'COGNITIVE_OVERLOAD' | string;
+  figureGroundSalience: string;
+  framingPsychology: string;
+  visualScanpath: string[];
+  evolutionaryTriggers: EvolutionaryTriggerItem[];
+  actionableNeuroHacks: string[];
+  executiveSummary: string;
+}
+
+export interface SemanticAlignmentDetails {
+  verdict:
+    | 'PERFECT_MATCH'
+    | 'STRONG_MATCH'
+    | 'COMPLEMENTARY_PAIR'
+    | 'REPRESENTATIVE_MOMENT'
+    | 'MODERATE_ALIGNMENT'
+    | 'WEAK_OR_ABSTRACT'
+    | 'CONTRADICTORY_OR_UNRELATED'
+    | string;
+  relationshipType?:
+    | 'DIRECT_CONTRADICTION'
+    | 'UNRELATED'
+    | 'REPRESENTATIVE_MOMENT'
+    | 'COMPLEMENTARY_PAIR'
+    | 'DIRECT_REINFORCEMENT'
+    | string;
+  detectedVisualElements: string;
+  titleCorePromise: string;
+  logicalConsistency: string;
+  alignmentScore?: number;
+  alignmentExplanation: string;
+  alignmentRecommendation: string;
+  missingContextNotice?: string;
 }
 
 export interface AnalysisResult {
   id?: string;
   timestamp?: number;
   overallCtrScore: number;
+  overallAssessmentScore?: number;
   ctrGrade: string;
-  visualHierarchyScore: number;
-  readabilityScore: number;
-  emotionScore: number;
-  focalPointScore: number;
-  titleSynergyScore: number;
+  rawScore?: number;
+  isCapped?: boolean;
+  appliedCap?: number | null;
+  alignmentWarning?: string | null;
+  alignmentDetails?: SemanticAlignmentDetails;
+  perceptionAnalysis?: PerceptionManagementDetails;
+  prioritizedImprovements?: PrioritizedImprovement[];
+  scoringFormula?: string;
+
+  // 5 Category Scores
+  visualImpact?: number;
+  readability?: number;
+  curiosity?: number;
+  clarity?: number;
+  titleThumbnailAlignment?: number;
+
+  // Legacy metric aliases
+  visualHierarchyScore?: number;
+  readabilityScore?: number;
+  emotionScore?: number;
+  focalPointScore?: number;
+  titleSynergyScore?: number;
+
   summary: string;
   strengths: string[];
   weaknesses: string[];

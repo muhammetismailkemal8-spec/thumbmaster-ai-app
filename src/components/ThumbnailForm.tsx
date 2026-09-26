@@ -387,6 +387,24 @@ export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoadin
         )}
 
         {/* Submit Button */}
+        {/* Features Included Tag */}
+        <div className="flex flex-wrap items-center justify-center gap-2 pt-1 pb-1 text-[11px] text-slate-400">
+          <span className="flex items-center gap-1 text-slate-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            Title–Cover Semantic Harmony
+          </span>
+          <span className="text-slate-600">•</span>
+          <span className="flex items-center gap-1 text-purple-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+            Evolutionary Psychology & Perception Audit
+          </span>
+          <span className="text-slate-600">•</span>
+          <span className="flex items-center gap-1 text-amber-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+            A/B Split Test Engine
+          </span>
+        </div>
+
         <button
           type="submit"
           disabled={isLoading}

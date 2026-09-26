@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { AnalysisResult } from '../types';
-import { CheckCircle2, AlertTriangle, Lightbulb, Eye, Flame, Award, Smartphone, Type as TypeIcon, Sparkles, Wand2, Copy, Check } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Lightbulb, Eye, Flame, Award, Smartphone, Type as TypeIcon, Sparkles, Wand2, Copy, Check, Brain } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { EvolutionaryPsychologyAudit } from './EvolutionaryPsychologyAudit';
 
 interface AnalysisReportViewProps {
   data: AnalysisResult;
@@ -47,6 +48,79 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
   };
 
   const promptText = generateDetailedPrompt(data);
+
+  const perceptionData = data.perceptionAnalysis || {
+    primitiveBrainScore: Math.round(
+      (data.visualImpact ?? data.visualHierarchyScore ?? 65) * 0.45 +
+        (data.curiosity ?? data.emotionScore ?? 65) * 0.55
+    ),
+    perceptionManagementScore: Math.round(
+      (data.clarity ?? data.focalPointScore ?? 65) * 0.5 +
+        (data.readability ?? data.readabilityScore ?? 65) * 0.5
+    ),
+    first50msGistComprehension:
+      data.summary?.slice(0, 140) ||
+      'Subconscious visual cortex immediately extracts primary high-contrast subject and dominant hue.',
+    cognitiveLoadVerdict:
+      (data.clarity ?? 60) > 70
+        ? 'OPTIMAL_MINIMALIST'
+        : (data.clarity ?? 60) > 45
+        ? 'BALANCED'
+        : 'COGNITIVE_OVERLOAD',
+    figureGroundSalience:
+      'Clear subject-to-background luminance separation prevents visual camouflage in mobile feed.',
+    framingPsychology:
+      (data.curiosity ?? 60) > 65 ? 'Reward-Seeking & Curiosity Void' : 'Informational / Neutral Framing',
+    visualScanpath: [
+      'Fixation 1: Primary high-contrast focal subject',
+      'Fixation 2: Core emotional facial expression / action element',
+      'Fixation 3: Text hook or secondary background context',
+    ],
+    evolutionaryTriggers: [
+      {
+        triggerName: 'Threat & Amygdala Alertness',
+        score: Math.min(100, Math.max(20, Math.round((data.curiosity ?? 65) * 0.9))),
+        status: (data.curiosity ?? 65) > 75 ? 'OPTIMAL' : 'MODERATE',
+        analysis: 'Visual tension and contrast stimulate subconscious survival alertness.',
+        evolutionaryMechanism:
+          'Ancestral humans evolved acute sensitivity to sudden changes in contrast and unexpected high-stakes visual cues.',
+      },
+      {
+        triggerName: 'Gaze Direction & Cooperative Eye Tracking',
+        score: Math.min(100, Math.max(30, Math.round((data.visualImpact ?? 65) * 0.85))),
+        status: 'MODERATE',
+        analysis: 'Facial orientation and eye lines guide viewer ocular trajectory across the frame.',
+        evolutionaryMechanism:
+          'The human cooperative eye hypothesis: white sclera evolved specifically to broadcast gaze direction and establish joint attention.',
+      },
+      {
+        triggerName: 'Dopamine Prediction Error & Curiosity Void',
+        score: Math.min(100, Math.max(25, Math.round((data.curiosity ?? 65) * 0.95))),
+        status: (data.curiosity ?? 65) > 70 ? 'OPTIMAL' : 'UNDERUTILIZED',
+        analysis: 'The visual creates an incomplete narrative that compels the viewer to click for closure.',
+        evolutionaryMechanism:
+          'Unresolved visual gaps are treated by the paleomammalian brain as information deficits requiring immediate resolution.',
+      },
+      {
+        triggerName: 'Luminescence & Resource Vitality',
+        score: Math.min(100, Math.max(20, Math.round((data.visualImpact ?? 65) * 0.9))),
+        status: (data.visualImpact ?? 65) > 70 ? 'OPTIMAL' : 'MODERATE',
+        analysis: 'Color vibrancy and saturation levels stimulate biological reward circuits.',
+        evolutionaryMechanism:
+          'Primates developed trichromatic vision specifically to detect ripe, high-energy food sources and potable water against foliage.',
+      },
+    ],
+    actionableNeuroHacks:
+      data.actionableTips && data.actionableTips.length > 0
+        ? data.actionableTips.slice(0, 3)
+        : [
+            'Amplify subject-to-background luminance contrast by at least 25% to trigger immediate saccadic eye movement.',
+            'Align the gaze direction of any faces directly toward the primary curiosity object or text hook (joint attention).',
+            'Sharpen the curiosity void by showing the high-stakes consequence without revealing the resolution.',
+          ],
+    executiveSummary:
+      'The thumbnail stimulates core ancestral attention mechanisms through contrast and focal subject placement, with opportunities to sharpen gaze tracking and informational void tension.',
+  };
 
   const getGradeColor = (grade: string) => {
     if (grade.startsWith('A')) return 'from-emerald-500 to-teal-400 text-emerald-400 border-emerald-500/30';
@@ -105,8 +179,8 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
           </div>
 
           {/* Big Score Badge */}
-          <div className="flex flex-col items-center justify-center p-6 bg-slate-950/80 rounded-2xl border border-slate-800 min-w-[170px]">
-            <span className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">{t.ctrPotential}</span>
+          <div className="flex flex-col items-center justify-center p-6 bg-slate-950/80 rounded-2xl border border-slate-800 min-w-[190px]">
+            <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-1">{t.ctrPotential}</span>
             <div className="flex items-baseline space-x-1">
               <span className="text-4xl font-extrabold text-white">{data.overallCtrScore}</span>
               <span className="text-sm text-slate-400">/100</span>
@@ -114,44 +188,313 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
             <div className={`mt-2 px-3 py-0.5 text-xs font-extrabold rounded-full border bg-slate-900 ${getGradeColor(data.ctrGrade)}`}>
               {t.gradeLabel}: {data.ctrGrade}
             </div>
+            <span className="mt-1.5 text-[10px] text-slate-400 font-mono text-center">
+              Heuristic Assessment
+            </span>
           </div>
         </div>
       </div>
 
-      {/* 5-Criteria Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        {[
-          { label: t.metricHierarchy, score: data.visualHierarchyScore, icon: Award },
-          { label: t.metricReadability, score: data.readabilityScore, icon: TypeIcon },
-          { label: t.metricEmotion, score: data.emotionScore, icon: Flame },
-          { label: t.metricFocalPoint, score: data.focalPointScore, icon: Eye },
-          { label: t.metricSynergy, score: data.titleSynergyScore, icon: Sparkles },
-        ].map((metric, idx) => (
-          <div key={idx} className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="font-semibold text-slate-300">{metric.label}</span>
-              <metric.icon className="w-4 h-4 text-slate-500" />
+      {/* Prominent Title–Thumbnail Mismatch / Disconnect Warning (Only for genuine mismatches) */}
+      {(((data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 100) < 60) && Boolean(data.alignmentWarning)) && (
+        <div className={`rounded-2xl border-2 p-5 sm:p-6 shadow-2xl relative overflow-hidden animate-in fade-in ${
+          (data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 100) < 40
+            ? 'bg-rose-950/90 border-rose-500/80 shadow-rose-950/40'
+            : 'bg-amber-950/85 border-amber-500/80 shadow-amber-950/40'
+        }`}>
+          <div className="flex items-start space-x-4">
+            <div className={`p-3 rounded-xl border shrink-0 mt-0.5 ${
+              (data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 100) < 40
+                ? 'bg-rose-500/20 border-rose-500/40 text-rose-400'
+                : 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+            }`}>
+              <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold text-white">{metric.score}</span>
-              <span className="text-[10px] text-slate-500">%</span>
-            </div>
-            {/* Progress Bar */}
-            <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full ${
-                  metric.score >= 80
-                    ? 'bg-emerald-500'
-                    : metric.score >= 60
-                    ? 'bg-amber-500'
-                    : 'bg-rose-500'
-                }`}
-                style={{ width: `${metric.score}%` }}
-              />
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className={`text-base sm:text-lg font-bold flex items-center gap-2 ${
+                  (data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 100) < 40
+                    ? 'text-rose-100'
+                    : 'text-amber-100'
+                }`}>
+                  <span>
+                    {(data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 100) < 40
+                      ? 'Direct Title–Thumbnail Disconnect'
+                      : 'Noticeable Semantic Alignment Gap'}
+                  </span>
+                </h3>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${
+                    (data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 100) < 40
+                      ? 'bg-rose-900/80 text-rose-300 border-rose-700/60'
+                      : 'bg-amber-900/80 text-amber-300 border-amber-700/60'
+                  }`}>
+                    Alignment: {data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 0}/100
+                  </span>
+                </div>
+              </div>
+              <p className={`text-xs sm:text-sm leading-relaxed ${
+                (data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 100) < 40
+                  ? 'text-rose-200'
+                  : 'text-amber-200'
+              }`}>
+                {data.alignmentWarning ||
+                  data.alignmentDetails?.alignmentExplanation ||
+                  'The thumbnail imagery does not clearly connect with the video title. Align the visual hook with the title premise to maintain viewer trust.'}
+              </p>
             </div>
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* 5-Criteria Deterministic Metrics Grid with Transparent Formula */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+          <span className="font-semibold text-slate-300">Deterministic Scoring Breakdown (Weighted Sum = Overall Score)</span>
+          <span className="font-mono text-[11px] text-slate-400">
+            Formula: 20% Visual + 15% Readability + 20% Curiosity + 15% Clarity + 30% Alignment
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {[
+            {
+              label: 'Visual Impact',
+              weight: '20%',
+              score: data.visualImpact ?? data.visualHierarchyScore ?? 0,
+              icon: Award,
+              desc: 'Contrast & punch',
+            },
+            {
+              label: 'Readability',
+              weight: '15%',
+              score: data.readability ?? data.readabilityScore ?? 0,
+              icon: TypeIcon,
+              desc: 'Text/subject legibility (text-free allowed)',
+            },
+            {
+              label: 'Curiosity',
+              weight: '20%',
+              score: data.curiosity ?? data.emotionScore ?? 0,
+              icon: Flame,
+              desc: 'Intrigue & hook',
+            },
+            {
+              label: 'Clarity',
+              weight: '15%',
+              score: data.clarity ?? data.focalPointScore ?? 0,
+              icon: Eye,
+              desc: 'Fast comprehension',
+            },
+            {
+              label: 'Title Alignment',
+              weight: '30%',
+              score: data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 0,
+              icon: Sparkles,
+              desc: (data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 0) < 40
+                ? 'Severe Mismatch'
+                : (data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 0) < 60
+                ? 'Semantic Gap'
+                : 'Complementary Synergy',
+              isWarning: (data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 0) < 40,
+            },
+          ].map((metric, idx) => (
+            <div
+              key={idx}
+              className={`p-4 rounded-xl border space-y-2.5 transition-all ${
+                metric.isWarning
+                  ? 'bg-rose-950/50 border-rose-500/60 shadow-lg shadow-rose-950/40'
+                  : 'bg-slate-900/80 border-slate-800'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span className={`font-semibold ${metric.isWarning ? 'text-rose-300' : 'text-slate-300'}`}>
+                  {metric.label}
+                </span>
+                <metric.icon className={`w-4 h-4 ${metric.isWarning ? 'text-rose-400' : 'text-slate-500'}`} />
+              </div>
+
+              <div className="flex items-baseline justify-between">
+                <div className="flex items-baseline space-x-1">
+                  <span className={`text-2xl font-bold ${metric.isWarning ? 'text-rose-200' : 'text-white'}`}>
+                    {metric.score}
+                  </span>
+                  <span className="text-[10px] text-slate-500">/100</span>
+                </div>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+                  {metric.weight}
+                </span>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    metric.isWarning || metric.score < 40
+                      ? 'bg-rose-500'
+                      : metric.score < 60
+                      ? 'bg-amber-500'
+                      : metric.score >= 80
+                      ? 'bg-emerald-500'
+                      : 'bg-emerald-600'
+                  }`}
+                  style={{ width: `${Math.max(3, Math.min(100, metric.score))}%` }}
+                />
+              </div>
+
+              <p className={`text-[10px] truncate ${metric.isWarning ? 'text-rose-400 font-medium' : 'text-slate-500'}`}>
+                {metric.desc}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
+
+      {/* Title & Cover Semantic Harmony Audit Card */}
+      <div className="bg-slate-900/95 rounded-2xl border border-indigo-500/30 p-6 space-y-5 shadow-xl relative overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                <span>Title & Cover Complementary Harmony Audit</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Evaluating title and thumbnail as a complementary storytelling pair (representative moments recognized)
+              </p>
+            </div>
+          </div>
+
+          {/* Verdict Badge */}
+          {(() => {
+            const alignScore = data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 50;
+            const rawVerdict = data.alignmentDetails?.verdict || '';
+            const verdict = rawVerdict.toUpperCase();
+
+            let badgeConfig = {
+              label: `${alignScore}/100 Synergy`,
+              bg: 'bg-slate-800 text-slate-300 border-slate-700',
+            };
+
+            if (verdict.includes('PERFECT') || alignScore >= 90) {
+              badgeConfig = { label: 'Flawless Synergy (90-100)', bg: 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50' };
+            } else if (verdict.includes('COMPLEMENTARY') || verdict.includes('REPRESENTATIVE')) {
+              badgeConfig = { label: 'Complementary / Representative Moment (75-95)', bg: 'bg-teal-950/90 text-teal-300 border-teal-500/50' };
+            } else if (verdict.includes('STRONG') || alignScore >= 75) {
+              badgeConfig = { label: 'Strong Congruence (75-89)', bg: 'bg-teal-950/90 text-teal-300 border-teal-500/50' };
+            } else if (verdict.includes('MODERATE') || alignScore >= 51) {
+              badgeConfig = { label: 'Moderate Alignment (51-74)', bg: 'bg-amber-950/90 text-amber-300 border-amber-500/50' };
+            } else if (verdict.includes('WEAK') || verdict.includes('ABSTRACT') || alignScore >= 26) {
+              badgeConfig = { label: 'Weak / Abstract Metaphor (26-50)', bg: 'bg-orange-950/90 text-orange-300 border-orange-500/50' };
+            } else {
+              badgeConfig = { label: 'Direct Contradiction / Unrelated (0-25)', bg: 'bg-rose-950/90 text-rose-300 border-rose-500/50' };
+            }
+
+            return (
+              <span className={`text-xs px-3 py-1.5 rounded-full font-bold border ${badgeConfig.bg}`}>
+                {badgeConfig.label}
+              </span>
+            );
+          })()}
+        </div>
+
+        {/* 2-Column Comparison: Visual Depiction vs Title Promise */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-rose-400 block">
+              🖼️ Visual Content Detected in Thumbnail
+            </span>
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+              {data.alignmentDetails?.detectedVisualElements ||
+                'Key visual subjects, focal elements, text overlays, and background composition identified in the uploaded thumbnail.'}
+            </p>
+          </div>
+
+          <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-sky-400 block">
+              🎯 Video Title Promise & Core Premise
+            </span>
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium">
+              {data.alignmentDetails?.titleCorePromise ||
+                (data.videoTitle ? `"${data.videoTitle}"` : 'The central subject, value proposition, and topic promised to the audience.')}
+            </p>
+          </div>
+        </div>
+
+        {/* Relationship Classification & Missing Context Notice */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {data.alignmentDetails?.relationshipType && (
+            <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-400 block">
+                🔗 Storytelling Relationship Type
+              </span>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {data.alignmentDetails.relationshipType === 'REPRESENTATIVE_MOMENT'
+                  ? 'Representative Moment: Illustrates one emotional or key part of the broader story (missing literal elements like full crowd counts is not a mismatch).'
+                  : data.alignmentDetails.relationshipType === 'COMPLEMENTARY_PAIR'
+                  ? 'Complementary Pair: Title and thumbnail reinforce each other with intrigue without literal redundancy.'
+                  : data.alignmentDetails.relationshipType === 'DIRECT_REINFORCEMENT'
+                  ? 'Direct Reinforcement: Visual elements directly mirror the main subject promised.'
+                  : data.alignmentDetails.relationshipType === 'DIRECT_CONTRADICTION'
+                  ? 'Direct Contradiction: Visuals directly conflict with facts stated in the title.'
+                  : 'Unrelated / Abstract: Distant thematic connection.'}
+              </p>
+            </div>
+          )}
+
+          {data.alignmentDetails?.missingContextNotice && (
+            <div className="bg-slate-950/60 p-4 rounded-xl border border-amber-500/20 space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-400 block">
+                ℹ️ Missing Video Context Acknowledged
+              </span>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {data.alignmentDetails.missingContextNotice}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Logical Consistency Breakdown */}
+        {data.alignmentDetails?.logicalConsistency && (
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-1.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-400 block">
+              🧠 Complementary Logic & Cognitive Continuity
+            </span>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              {data.alignmentDetails.logicalConsistency}
+            </p>
+          </div>
+        )}
+
+        {/* Detailed Assessment */}
+        {data.alignmentDetails?.alignmentExplanation && (
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-1.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+              📋 Semantic Alignment Evaluation
+            </span>
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+              {data.alignmentDetails.alignmentExplanation}
+            </p>
+          </div>
+        )}
+
+        {/* Actionable Alignment Recommendation */}
+        {data.alignmentDetails?.alignmentRecommendation && (
+          <div className="bg-indigo-950/40 p-4 rounded-xl border border-indigo-500/30 space-y-1.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-300 block">
+              💡 Actionable Harmony Fix
+            </span>
+            <p className="text-xs sm:text-sm text-indigo-100 leading-relaxed">
+              {data.alignmentDetails.alignmentRecommendation}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Evolutionary Psychology & Perception Management Audit */}
+      <EvolutionaryPsychologyAudit data={perceptionData} videoTitle={data.videoTitle} />
 
       {/* Summary Paragraph */}
       <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 space-y-3">
@@ -225,25 +568,63 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
         </div>
       </div>
 
-      {/* Actionable Fix Instructions */}
+      {/* Prioritized Design Improvements (Max 3, no invented filler) */}
       <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 space-y-4">
-        <h3 className="text-base font-bold text-white flex items-center space-x-2 border-b border-slate-800 pb-3">
-          <Sparkles className="w-5 h-5 text-rose-500" />
-          <span>{t.fixStepsTitle}</span>
-        </h3>
-        <div className="space-y-3">
-          {data.actionableTips.map((tip, idx) => (
-            <div key={idx} className="flex items-start space-x-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
-              <span className="w-6 h-6 rounded-full bg-rose-500/20 text-rose-400 font-bold text-xs flex items-center justify-center shrink-0">
-                {idx + 1}
-              </span>
-              <p className="text-xs sm:text-sm text-slate-200 font-medium leading-relaxed">{tip}</p>
-            </div>
-          ))}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 className="text-base font-bold text-white flex items-center space-x-2">
+            <Sparkles className="w-5 h-5 text-rose-500" />
+            <span>{t.fixStepsTitle}</span>
+          </h3>
+          <span className="text-[11px] text-slate-400 font-mono">
+            Observation • Action • Tradeoff
+          </span>
         </div>
+
+        {data.prioritizedImprovements && data.prioritizedImprovements.length > 0 ? (
+          <div className="grid grid-cols-1 gap-3.5">
+            {data.prioritizedImprovements.slice(0, 3).map((item, idx) => (
+              <div key={idx} className="bg-slate-950/70 p-4 rounded-xl border border-slate-800/80 space-y-2">
+                <div className="flex items-center space-x-2.5">
+                  <span className="w-6 h-6 rounded-full bg-rose-500/20 text-rose-400 font-bold text-xs flex items-center justify-center shrink-0">
+                    {idx + 1}
+                  </span>
+                  <span className="text-xs font-bold text-slate-200">
+                    Action: <span className="text-amber-300 font-semibold">{item.suggestedAction}</span>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-xs">
+                  <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800/60">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">👁️ Observation</span>
+                    <p className="text-slate-300 leading-relaxed">{item.observation}</p>
+                  </div>
+                  <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800/60">
+                    <span className="text-[10px] uppercase font-bold text-emerald-400 block mb-0.5">💡 Rationale</span>
+                    <p className="text-slate-300 leading-relaxed">{item.reason}</p>
+                  </div>
+                  <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800/60">
+                    <span className="text-[10px] uppercase font-bold text-amber-400 block mb-0.5">⚖️ Tradeoff / Uncertainty</span>
+                    <p className="text-slate-300 leading-relaxed">{item.tradeoffOrUncertainty}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {data.actionableTips.map((tip, idx) => (
+              <div key={idx} className="flex items-start space-x-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
+                <span className="w-6 h-6 rounded-full bg-rose-500/20 text-rose-400 font-bold text-xs flex items-center justify-center shrink-0">
+                  {idx + 1}
+                </span>
+                <p className="text-xs sm:text-sm text-slate-200 font-medium leading-relaxed">{tip}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* A/B Test Alternative Suggestion */}
+      {/* A/B Test Alternative Suggestion (Presented as an Untested Hypothesis) */}
       {data.abTestDetails ? (
         <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 rounded-2xl border border-amber-500/40 p-6 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -268,7 +649,49 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
             </span>
           </div>
 
-          {/* 🎯 Alternatif Yüksek CTR Başlığı */}
+          {/* Hypothesis Diagnostic Card */}
+          {data.abTestDetails.hypothesis && (
+            <div className="bg-slate-950/90 p-4 sm:p-5 rounded-xl border border-amber-500/30 space-y-3 relative z-10">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                  <span>🔬 Hypothesis Framework (Single-Variable Test)</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  {data.abTestDetails.hypothesis.variableTested && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono">
+                      Variable: {data.abTestDetails.hypothesis.variableTested}
+                    </span>
+                  )}
+                  {data.abTestDetails.hypothesis.metricToMonitor && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-emerald-300 font-mono">
+                      Monitor: {data.abTestDetails.hypothesis.metricToMonitor}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
+                <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-800/80 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-sky-400 block">Specific Change</span>
+                  <p className="text-slate-200">{data.abTestDetails.hypothesis.specificChange}</p>
+                </div>
+                <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-800/80 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-emerald-400 block">Why It Might Help</span>
+                  <p className="text-slate-200">{data.abTestDetails.hypothesis.whyItMightHelp}</p>
+                </div>
+                <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-800/80 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-rose-400 block">What It Might Weaken</span>
+                  <p className="text-slate-200">{data.abTestDetails.hypothesis.whatItMightWeaken}</p>
+                </div>
+                <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-800/80 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-amber-400 block">Proposed Comparison</span>
+                  <p className="text-slate-200">{data.abTestDetails.hypothesis.testComparison}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Alternatif Başlık */}
           <div className="bg-slate-900/90 p-5 rounded-xl border border-slate-800 space-y-2 relative z-10">
             <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center space-x-2">
               <span>{t.altTitleLabel}</span>
@@ -278,7 +701,7 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
             </p>
           </div>
 
-          {/* 🖼️ Alternatif Kapak Konsepti */}
+          {/* Alternatif Kapak Konsepti */}
           <div className="bg-slate-900/90 p-5 rounded-xl border border-slate-800 space-y-4 relative z-10">
             <h3 className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center space-x-2">
               <span>{t.altConceptLabel}</span>
@@ -327,7 +750,7 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
             </div>
           </div>
 
-          {/* 🧠 Neden Daha Güçlü? */}
+          {/* Neden Bu Hipotez? */}
           <div className="bg-slate-900/90 p-5 rounded-xl border border-slate-800 space-y-3 relative z-10">
             <h3 className="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center space-x-2">
               <span>{t.whyStrongerTitle}</span>
@@ -351,7 +774,7 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
             </div>
           </div>
 
-          {/* 📈 Beklenen Etki */}
+          {/* Beklenen Etki (Heuristic ratings, not guaranteed CTR) */}
           <div className="bg-slate-900/90 p-5 rounded-xl border border-slate-800 space-y-4 relative z-10">
             <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center space-x-2">
               <span>{t.expectedImpactTitle}</span>
@@ -361,9 +784,9 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
               <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 text-center space-y-1">
                 <span className="text-[11px] text-slate-400 font-semibold block">{t.ctrImpactPotentialLabel}</span>
                 <div className="text-amber-400 text-base font-bold">
-                  {'★'.repeat(Math.min(5, Math.max(1, data.abTestDetails.expectedImpact.ctrPotentialStars || 5)))}
+                  {'★'.repeat(Math.min(5, Math.max(1, data.abTestDetails.expectedImpact.ctrPotentialStars || 4)))}
                   <span className="text-slate-600">
-                    {'☆'.repeat(5 - Math.min(5, Math.max(1, data.abTestDetails.expectedImpact.ctrPotentialStars || 5)))}
+                    {'☆'.repeat(5 - Math.min(5, Math.max(1, data.abTestDetails.expectedImpact.ctrPotentialStars || 4)))}
                   </span>
                 </div>
               </div>
@@ -371,9 +794,9 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
               <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 text-center space-y-1">
                 <span className="text-[11px] text-slate-400 font-semibold block">{t.curiosityLabel}</span>
                 <div className="text-amber-400 text-base font-bold">
-                  {'★'.repeat(Math.min(5, Math.max(1, data.abTestDetails.expectedImpact.curiosityStars || 5)))}
+                  {'★'.repeat(Math.min(5, Math.max(1, data.abTestDetails.expectedImpact.curiosityStars || 4)))}
                   <span className="text-slate-600">
-                    {'☆'.repeat(5 - Math.min(5, Math.max(1, data.abTestDetails.expectedImpact.curiosityStars || 5)))}
+                    {'☆'.repeat(5 - Math.min(5, Math.max(1, data.abTestDetails.expectedImpact.curiosityStars || 4)))}
                   </span>
                 </div>
               </div>
@@ -401,7 +824,7 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
               <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 text-center space-y-1 flex flex-col justify-center items-center">
                 <span className="text-[11px] text-slate-400 font-semibold block">{t.abPriorityLabel}</span>
                 <span className="px-3 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-full font-bold text-xs uppercase">
-                  {data.abTestDetails.expectedImpact.abTestPriority || 'High'}
+                  {data.abTestDetails.expectedImpact.abTestPriority || 'Medium'}
                 </span>
               </div>
             </div>
@@ -480,7 +903,7 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
 
         <div className="flex flex-wrap gap-2 text-[10px] font-mono text-slate-400 relative z-10">
           <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800 text-rose-300 font-bold">--ar 16:9</span>
-          <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">High CTR</span>
+          <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">High Visual Contrast</span>
           <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">Mobile Feed Optimized</span>
           <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">Photorealistic 8k</span>
           <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">High Contrast</span>

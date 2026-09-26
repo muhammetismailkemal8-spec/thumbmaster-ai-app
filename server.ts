@@ -17,11 +17,17 @@ app.set('trust proxy', 1);
 // ============================================================================
 // 1. SECURITY HEADERS (Helmet)
 // ============================================================================
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: false,
+    frameguard: false,
+  })
+);
 
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
@@ -51,6 +57,10 @@ app.post('/api/analyze-thumbnail', async (req, res) => {
 
 // Mode B: Generate thumbnail concept blueprint
 app.post('/api/generate-thumbnail-concept', async (req, res) => {
+  await handleGenerateThumbnailConceptRequest(req, res);
+});
+
+app.post('/api/generate-thumbnail', async (req, res) => {
   await handleGenerateThumbnailConceptRequest(req, res);
 });
 
