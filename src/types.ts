@@ -1,3 +1,76 @@
+export type ContradictionType =
+  | 'topic_mismatch'
+  | 'numeric_conflict'
+  | 'brand_conflict'
+  | 'model_conflict'
+  | 'person_mismatch'
+  | 'emotional_conflict'
+  | 'adjective_polarity_conflict'
+  | 'language_mismatch'
+  | 'unsupported_claim'
+  | 'duplicate_information'
+  | 'insufficient_evidence';
+
+export interface ContradictionItem {
+  type: ContradictionType;
+  severity: 'critical' | 'major' | 'minor';
+  description: string;
+  titleValue?: string;
+  thumbnailValue?: string;
+  confidence?: 'high' | 'medium' | 'low';
+}
+
+export interface StructuredExtraction {
+  mainTopic: string;
+  visibleObjects: string[];
+  ocrText: string[];
+  numbersAndQuantities: {
+    titleNumbers: string[];
+    thumbnailNumbers: string[];
+    hasConflict: boolean;
+    details?: string;
+  };
+  namedPeople: {
+    titlePeople: string[];
+    thumbnailPeople: string[];
+    identificationConfidence: 'high' | 'medium' | 'low';
+    verificationStatus: 'verified' | 'unverified' | 'mismatch' | 'not_applicable';
+    notes?: string;
+  };
+  brands: {
+    titleBrands: string[];
+    thumbnailBrands: string[];
+    hasConflict: boolean;
+    details?: string;
+  };
+  productModels: {
+    titleModels: string[];
+    thumbnailModels: string[];
+    hasConflict: boolean;
+    details?: string;
+  };
+  locations?: string[];
+  emotionalTone: {
+    titleTone: string;
+    thumbnailTone: string;
+    isOpposite: boolean;
+  };
+  importantAdjectives: {
+    titleAdjectives: string[];
+    thumbnailPolarity: 'consistent' | 'opposite' | 'neutral';
+    notes?: string;
+  };
+  detectedLanguage: {
+    titleLanguage: string;
+    thumbnailTextLanguage?: string;
+    targetAudienceLanguage?: string;
+    hasMismatch: boolean;
+  };
+  thumbnailTextAmount: 'none' | 'minimal' | 'moderate' | 'heavy';
+  visualQuality: 'low' | 'medium' | 'high';
+  confidenceLevel: 'high' | 'medium' | 'low';
+}
+
 export interface VideoInput {
   videoTitle: string;
   videoTopic: string;
@@ -114,6 +187,8 @@ export interface SemanticAlignmentDetails {
   alignmentExplanation: string;
   alignmentRecommendation: string;
   missingContextNotice?: string;
+  structuredExtraction?: StructuredExtraction;
+  contradictions?: ContradictionItem[];
 }
 
 export interface AnalysisResult {
@@ -125,6 +200,9 @@ export interface AnalysisResult {
   rawScore?: number;
   isCapped?: boolean;
   appliedCap?: number | null;
+  capReason?: string | null;
+  contradictions?: ContradictionItem[];
+  structuredExtraction?: StructuredExtraction;
   alignmentWarning?: string | null;
   alignmentDetails?: SemanticAlignmentDetails;
   perceptionAnalysis?: PerceptionManagementDetails;

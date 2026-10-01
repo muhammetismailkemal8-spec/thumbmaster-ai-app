@@ -177,3 +177,236 @@ test('viewer psychology assessment rejects pseudo-scientific claims', () => {
   }
 });
 
+test('normalizeNumberString accurately handles English, Turkish, and formatted numbers', async () => {
+  const { normalizeNumberString, extractNumbersFromText } = await import('../api/_lib.js');
+
+  assert.equal(normalizeNumberString('100'), 100);
+  assert.equal(normalizeNumberString('1,000'), 1000);
+  assert.equal(normalizeNumberString('1.000'), 1000);
+  assert.equal(normalizeNumberString('1K'), 1000);
+  assert.equal(normalizeNumberString('10K'), 10000);
+  assert.equal(normalizeNumberString('1M'), 1000000);
+  assert.equal(normalizeNumberString('one thousand'), 1000);
+  assert.equal(normalizeNumberString('one hundred'), 100);
+  assert.equal(normalizeNumberString('ten thousand'), 10000);
+
+  // Turkish number words
+  assert.equal(normalizeNumberString('yüz'), 100);
+  assert.equal(normalizeNumberString('bin'), 1000);
+  assert.equal(normalizeNumberString('on bin'), 10000);
+  assert.equal(normalizeNumberString('bir milyon'), 1000000);
+
+  // Extract from sentence
+  const extracted = extractNumbersFromText('We survived 100 days with $1,000 challenge');
+  const normalizedValues = extracted.map((e) => e.normalized);
+  assert.ok(normalizedValues.includes(100));
+  assert.ok(normalizedValues.includes(1000));
+});
+
+test('hard scoring rules: completely unrelated topic caps alignment at 15 and overall at 35', async () => {
+  const { validateAndEnforceScoreConsistency } = await import('../api/_lib.js');
+
+  const result = validateAndEnforceScoreConsistency({
+    visualImpact: 90,
+    readability: 85,
+    curiosity: 80,
+    clarity: 85,
+    titleThumbnailAlignment: 80, // initial high score from AI
+    contradictions: [
+      {
+        type: 'topic_mismatch',
+        severity: 'critical',
+        description: 'Thumbnail depicts cooking sushi recipe while title is about car engine repair.',
+      },
+    ],
+    alignmentDetails: {
+      verdict: 'STRONG_MATCH', // AI mistakenly praised
+      alignmentExplanation: 'Visually strong imagery.',
+    },
+  });
+
+  assert.ok(result.titleThumbnailAlignment <= 15, 'Alignment score must be capped between 0 and 15');
+  assert.ok(result.overallScore <= 35, 'Overall score must not exceed 35 for completely unrelated topic');
+  assert.equal(result.alignmentDetails.verdict, 'CONTRADICTORY_OR_UNRELATED');
+  assert.notEqual(result.alignmentDetails.relationshipType, 'COMPLEMENTARY_PAIR');
+  assert.ok(result.isCapped, 'Must be flagged as capped');
+  assert.equal(result.appliedCap, 35);
+});
+
+test('hard scoring rules: direct numeric contradiction caps alignment at 20, overall at 40, and shows both values', async () => {
+  const { validateAndEnforceScoreConsistency } = await import('../api/_lib.js');
+
+  // Title says 100 children, thumbnail explicitly displays 1,000
+  const result = validateAndEnforceScoreConsistency({
+    visualImpact: 85,
+    readability: 80,
+    curiosity: 85,
+    clarity: 80,
+    titleThumbnailAlignment: 75,
+    structuredExtraction: {
+      mainTopic: 'Children dreams',
+      numbersAndQuantities: {
+        titleNumbers: ['100'],
+        thumbnailNumbers: ['1,000'],
+        hasConflict: true,
+      },
+    },
+    contradictions: [
+      {
+        type: 'numeric_conflict',
+        severity: 'critical',
+        description: 'Title states 100 children while thumbnail text displays 1,000.',
+        titleValue: '100',
+        thumbnailValue: '1,000',
+      },
+    ],
+    alignmentDetails: {
+      verdict: 'STRONG_MATCH',
+    },
+  });
+
+  assert.ok(result.titleThumbnailAlignment <= 20, 'Alignment must not exceed 20 for direct numeric contradiction');
+  assert.ok(result.overallScore <= 40, 'Overall score must not exceed 40');
+  assert.equal(result.alignmentDetails.verdict, 'CONTRADICTORY_OR_UNRELATED');
+  assert.ok(result.contradictions.some((c) => c.titleValue === '100' && c.thumbnailValue === '1,000'));
+});
+
+test('representative moment (e.g. 100 children with 1 child meeting celebrity) is NOT a numeric contradiction', async () => {
+  const { validateAndEnforceScoreConsistency } = await import('../api/_lib.js');
+
+  // 100 children in title, 1 child + host + celebrity in thumbnail, no conflicting number displayed
+  const result = validateAndEnforceScoreConsistency({
+    visualImpact: 85,
+    readability: 80,
+    curiosity: 85,
+    clarity: 80,
+    titleThumbnailAlignment: 82,
+    structuredExtraction: {
+      mainTopic: 'Children dreams fulfilled',
+      numbersAndQuantities: {
+        titleNumbers: ['100'],
+        thumbnailNumbers: [], // No contradictory number
+        hasConflict: false,
+      },
+    },
+    contradictions: [], // No contradiction!
+    alignmentDetails: {
+      verdict: 'REPRESENTATIVE_MOMENT',
+      relationshipType: 'REPRESENTATIVE_MOMENT',
+      alignmentExplanation: 'The thumbnail depicts one peak representative moment of the 100 children premise.',
+    },
+  });
+
+  assert.ok(result.titleThumbnailAlignment >= 75 && result.titleThumbnailAlignment <= 90);
+  assert.equal(result.alignmentDetails.verdict, 'REPRESENTATIVE_MOMENT');
+  assert.equal(result.isCapped, false, 'Representative moment must not be capped');
+  assert.ok(result.overallScore >= 75, 'Overall score should reflect strong representative storytelling');
+});
+
+test('hard scoring rules: direct brand and model contradiction caps alignment at 15 and overall at 40', async () => {
+  const { validateAndEnforceScoreConsistency } = await import('../api/_lib.js');
+
+  const brandResult = validateAndEnforceScoreConsistency({
+    visualImpact: 85,
+    readability: 80,
+    curiosity: 85,
+    clarity: 80,
+    titleThumbnailAlignment: 80,
+    contradictions: [
+      {
+        type: 'brand_conflict',
+        severity: 'critical',
+        description: 'Title promises iPhone 16 Pro but thumbnail displays Samsung Galaxy S24 Ultra.',
+        titleValue: 'iPhone 16 Pro',
+        thumbnailValue: 'Samsung Galaxy S24 Ultra',
+      },
+    ],
+  });
+
+  assert.ok(brandResult.titleThumbnailAlignment <= 15);
+  assert.ok(brandResult.overallScore <= 40);
+  assert.equal(brandResult.alignmentDetails.verdict, 'CONTRADICTORY_OR_UNRELATED');
+  assert.notEqual(brandResult.alignmentDetails.relationshipType, 'COMPLEMENTARY_PAIR');
+});
+
+test('hard scoring rules: strong emotional opposite caps alignment at 20 and overall at 40', async () => {
+  const { validateAndEnforceScoreConsistency } = await import('../api/_lib.js');
+
+  // Title: "Worst Day of My Life", thumbnail depicts laughing celebration with champagne
+  const emoResult = validateAndEnforceScoreConsistency({
+    visualImpact: 85,
+    readability: 80,
+    curiosity: 85,
+    clarity: 80,
+    titleThumbnailAlignment: 80,
+    contradictions: [
+      {
+        type: 'emotional_conflict',
+        severity: 'major',
+        description: 'Title promises tragic "Worst Day" story but thumbnail shows joyful laughing celebration.',
+        titleValue: 'Tragic / Sad',
+        thumbnailValue: 'Laughing Celebration',
+      },
+    ],
+  });
+
+  assert.ok(emoResult.titleThumbnailAlignment <= 20);
+  assert.ok(emoResult.overallScore <= 40);
+  assert.equal(emoResult.alignmentDetails.verdict, 'CONTRADICTORY_OR_UNRELATED');
+});
+
+test('hard scoring rules: language mismatch for target audience penalizes readability and alignment', async () => {
+  const { validateAndEnforceScoreConsistency } = await import('../api/_lib.js');
+
+  const langResult = validateAndEnforceScoreConsistency({
+    visualImpact: 85,
+    readability: 85,
+    curiosity: 85,
+    clarity: 80,
+    titleThumbnailAlignment: 85,
+    contradictions: [
+      {
+        type: 'language_mismatch',
+        severity: 'major',
+        description: 'Thumbnail overlay text is in Japanese while target audience and title are Turkish.',
+        titleValue: 'Turkish',
+        thumbnailValue: 'Japanese',
+      },
+    ],
+  });
+
+  assert.ok(langResult.readability <= 50, 'Readability should be penalized for foreign language text overlay');
+  assert.ok(langResult.titleThumbnailAlignment <= 50, 'Alignment should be penalized for language barrier');
+});
+
+test('consistency validator guarantees explanation and labels agree with sub-scores', async () => {
+  const { validateAndEnforceScoreConsistency } = await import('../api/_lib.js');
+
+  const result = validateAndEnforceScoreConsistency({
+    visualImpact: 70,
+    readability: 70,
+    curiosity: 70,
+    clarity: 70,
+    titleThumbnailAlignment: 15,
+    contradictions: [
+      {
+        type: 'brand_conflict',
+        severity: 'critical',
+        description: 'Brand mismatch',
+        titleValue: 'Apple',
+        thumbnailValue: 'Samsung',
+      },
+    ],
+    alignmentDetails: {
+      verdict: 'PERFECT_MATCH', // Model output contradictory label
+      alignmentExplanation: 'Strong Alignment and Complementary Synergy between title and image.',
+    },
+  });
+
+  // Must not have "Strong Alignment" or "Complementary Synergy" or "PERFECT_MATCH"
+  assert.equal(result.alignmentDetails.verdict, 'CONTRADICTORY_OR_UNRELATED');
+  assert.ok(!result.alignmentDetails.alignmentExplanation.toLowerCase().includes('perfect'));
+  assert.ok(!result.alignmentDetails.alignmentExplanation.toLowerCase().includes('strong alignment'));
+  assert.ok(result.alignmentDetails.alignmentExplanation.includes('Direct contradiction detected'));
+});
+

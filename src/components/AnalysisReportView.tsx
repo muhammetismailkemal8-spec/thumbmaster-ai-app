@@ -44,7 +44,7 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
 
     const textOverlayStr = textHook ? ` Clean bold text overlay reading "${textHook}" in high-contrast typography.` : '';
 
-    return `High-CTR 16:9 YouTube thumbnail image for video titled "${data.videoTitle || 'YouTube Video'}". Main Subject: ${mainObj}. Background: ${bg}. Lighting: ${lighting}. Camera Angle: ${camera}. Color Palette: ${colors}. Target Emotion: ${emotion}.${textOverlayStr} Optimized for mobile feed readability, clear visual hierarchy, uncluttered composition, high contrast, vivid saturation, photorealistic 8k quality, professional YouTube thumbnail aesthetics, no watermarks, --ar 16:9.${weaknessesStr}`;
+    return `Cinematic 16:9 YouTube thumbnail image for video titled "${data.videoTitle || 'YouTube Video'}". Main Subject: ${mainObj}. Background: ${bg}. Lighting: ${lighting}. Camera Angle: ${camera}. Color Palette: ${colors}. Target Emotion: ${emotion}.${textOverlayStr} Optimized for mobile feed readability, clear visual hierarchy, uncluttered composition, high contrast, vivid saturation, photorealistic 8k quality, professional YouTube thumbnail aesthetics, no watermarks, --ar 16:9.${weaknessesStr}`;
   };
 
   const promptText = generateDetailedPrompt(data);
@@ -188,6 +188,11 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
             <div className={`mt-2 px-3 py-0.5 text-xs font-extrabold rounded-full border bg-slate-900 ${getGradeColor(data.ctrGrade)}`}>
               {t.gradeLabel}: {data.ctrGrade}
             </div>
+            {data.isCapped && (
+              <span className="mt-1.5 px-2 py-0.5 text-[9px] font-bold rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-center">
+                Hard Cap: {data.appliedCap}/100
+              </span>
+            )}
             <span className="mt-1.5 text-[10px] text-slate-400 font-mono text-center">
               Heuristic Assessment
             </span>
@@ -195,8 +200,73 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
         </div>
       </div>
 
-      {/* Prominent Title–Thumbnail Mismatch / Disconnect Warning (Only for genuine mismatches) */}
-      {(((data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 100) < 60) && Boolean(data.alignmentWarning)) && (
+      {/* Direct Contradictions & Conflict Detections Card (If direct contradictions detected) */}
+      {data.contradictions && data.contradictions.length > 0 && (
+        <div className="rounded-2xl border-2 border-rose-500/80 bg-rose-950/90 shadow-2xl p-5 sm:p-6 space-y-4 animate-in fade-in">
+          <div className="flex items-start justify-between flex-wrap gap-3 border-b border-rose-800/60 pb-3">
+            <div className="flex items-center space-x-3">
+              <div className="p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-400">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-rose-100 flex items-center gap-2">
+                  <span>Direct Contradictions & Conflicts Detected</span>
+                  <span className="text-xs px-2 py-0.5 rounded bg-rose-900 text-rose-300 border border-rose-700 font-mono">
+                    {data.contradictions.length} Conflict{data.contradictions.length > 1 ? 's' : ''}
+                  </span>
+                </h3>
+                <p className="text-xs text-rose-300">
+                  {data.isCapped
+                    ? `Deterministic penalty enforced: Overall score capped at ${data.appliedCap}/100 (Alignment capped at ${data.titleThumbnailAlignment}/100)`
+                    : 'Severe semantic or factual disconnect between title promise and visual depiction'}
+                </p>
+              </div>
+            </div>
+            {data.isCapped && (
+              <span className="text-xs px-3 py-1 rounded-full font-bold bg-rose-900/90 text-rose-200 border border-rose-500/60">
+                Hard Cap Enforced: {data.appliedCap}/100
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            {data.contradictions.map((c, idx) => (
+              <div key={idx} className="bg-slate-950/80 p-4 rounded-xl border border-rose-900/60 space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono">
+                    {c.type.replace(/_/g, ' ')}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">
+                    Severity: {c.severity || 'Critical'}
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium">
+                  {c.description}
+                </p>
+                {(c.titleValue || c.thumbnailValue) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs font-mono">
+                    {c.titleValue && (
+                      <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 text-slate-300">
+                        <span className="text-rose-400 font-semibold block text-[10px] uppercase">Title Promise:</span>
+                        {c.titleValue}
+                      </div>
+                    )}
+                    {c.thumbnailValue && (
+                      <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 text-slate-300">
+                        <span className="text-amber-400 font-semibold block text-[10px] uppercase">Thumbnail Evidence:</span>
+                        {c.thumbnailValue}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Prominent Title–Thumbnail Mismatch / Disconnect Warning (Only when no explicit contradiction card is already shown) */}
+      {(!data.contradictions || data.contradictions.length === 0) && (((data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 100) < 60) && Boolean(data.alignmentWarning)) && (
         <div className={`rounded-2xl border-2 p-5 sm:p-6 shadow-2xl relative overflow-hidden animate-in fade-in ${
           (data.titleThumbnailAlignment ?? data.titleSynergyScore ?? 100) < 40
             ? 'bg-rose-950/90 border-rose-500/80 shadow-rose-950/40'
@@ -249,10 +319,12 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
 
       {/* 5-Criteria Deterministic Metrics Grid with Transparent Formula */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-slate-400 px-1 gap-1">
           <span className="font-semibold text-slate-300">Deterministic Scoring Breakdown (Weighted Sum = Overall Score)</span>
           <span className="font-mono text-[11px] text-slate-400">
-            Formula: 20% Visual + 15% Readability + 20% Curiosity + 15% Clarity + 30% Alignment
+            {data.isCapped
+              ? `Weighted: ${data.rawScore}/100 ➔ Capped to ${data.overallCtrScore}/100 (${data.capReason || 'Conflict Cap'})`
+              : 'Formula: 20% Visual + 15% Readability + 20% Curiosity + 15% Clarity + 30% Alignment'}
           </span>
         </div>
 
@@ -489,6 +561,82 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
             <p className="text-xs sm:text-sm text-indigo-100 leading-relaxed">
               {data.alignmentDetails.alignmentRecommendation}
             </p>
+          </div>
+        )}
+
+        {/* Structured Entity Extraction & Cross-Reference Layer */}
+        {data.structuredExtraction && (
+          <div className="bg-slate-950/70 p-4 sm:p-5 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <span>🔍 Structured Entity Cross-Reference</span>
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                Confidence: {data.structuredExtraction.confidenceLevel || 'High'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+              {/* Main Topic */}
+              <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono text-slate-400 uppercase block">Extracted Main Topic</span>
+                <p className="text-slate-200 font-medium">{data.structuredExtraction.mainTopic || data.videoTopic || 'General'}</p>
+              </div>
+
+              {/* OCR Text */}
+              <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono text-slate-400 uppercase block">OCR Text in Thumbnail</span>
+                <p className="text-slate-200">
+                  {data.structuredExtraction.ocrText && data.structuredExtraction.ocrText.length > 0
+                    ? `"${data.structuredExtraction.ocrText.join('", "')}"`
+                    : 'None (Text-free visual)'}
+                </p>
+              </div>
+
+              {/* Numbers & Quantities */}
+              <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono text-slate-400 uppercase block">Numbers / Quantities</span>
+                <p className="text-slate-200">
+                  {data.structuredExtraction.numbersAndQuantities?.hasConflict
+                    ? `⚠️ Conflict: Title (${data.structuredExtraction.numbersAndQuantities.titleNumbers?.join(', ') || 'N/A'}) vs Thumbnail (${data.structuredExtraction.numbersAndQuantities.thumbnailNumbers?.join(', ') || 'N/A'})`
+                    : data.structuredExtraction.numbersAndQuantities?.titleNumbers?.length
+                    ? `Title: ${data.structuredExtraction.numbersAndQuantities.titleNumbers.join(', ')} (Consistent)`
+                    : 'No specific quantities compared'}
+                </p>
+              </div>
+
+              {/* Named People & Verification */}
+              <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono text-slate-400 uppercase block">Named People & Verification</span>
+                <p className="text-slate-200">
+                  {data.structuredExtraction.namedPeople?.titlePeople?.length
+                    ? `${data.structuredExtraction.namedPeople.titlePeople.join(', ')}: ${data.structuredExtraction.namedPeople.verificationStatus === 'verified' ? 'Verified in image' : data.structuredExtraction.namedPeople.verificationStatus === 'mismatch' ? 'Mismatch detected' : 'Unverified (no facial recognition assumptions)'}`
+                    : 'No specific individual promised'}
+                </p>
+              </div>
+
+              {/* Brands & Models */}
+              <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono text-slate-400 uppercase block">Brands & Models</span>
+                <p className="text-slate-200">
+                  {data.structuredExtraction.brands?.hasConflict || data.structuredExtraction.productModels?.hasConflict
+                    ? '⚠️ Brand/Model Conflict Detected'
+                    : data.structuredExtraction.brands?.titleBrands?.length
+                    ? `Brands: ${data.structuredExtraction.brands.titleBrands.join(', ')}`
+                    : 'No specific brands compared'}
+                </p>
+              </div>
+
+              {/* Emotional Tone & Language */}
+              <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono text-slate-400 uppercase block">Emotional Tone & Language</span>
+                <p className="text-slate-200">
+                  {data.structuredExtraction.emotionalTone?.isOpposite
+                    ? '⚠️ Polar Emotional Conflict'
+                    : `Tone: ${data.structuredExtraction.emotionalTone?.titleTone || 'Neutral'} • Lang: ${data.structuredExtraction.detectedLanguage?.titleLanguage || 'English'}`}
+                </p>
+              </div>
+            </div>
           </div>
         )}
       </div>
