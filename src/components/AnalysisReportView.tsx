@@ -587,8 +587,8 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
               <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
                 <span className="text-[10px] font-mono text-slate-400 uppercase block">OCR Text in Thumbnail</span>
                 <p className="text-slate-200">
-                  {data.structuredExtraction.ocrText && data.structuredExtraction.ocrText.length > 0
-                    ? `"${data.structuredExtraction.ocrText.join('", "')}"`
+                  {data.structuredExtraction.ocrText && (Array.isArray(data.structuredExtraction.ocrText) ? data.structuredExtraction.ocrText.length > 0 : Boolean(data.structuredExtraction.ocrText))
+                    ? `"${Array.isArray(data.structuredExtraction.ocrText) ? data.structuredExtraction.ocrText.join('", "') : data.structuredExtraction.ocrText}"`
                     : 'None (Text-free visual)'}
                 </p>
               </div>
@@ -631,9 +631,9 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
               <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
                 <span className="text-[10px] font-mono text-slate-400 uppercase block">Emotional Tone & Language</span>
                 <p className="text-slate-200">
-                  {data.structuredExtraction.emotionalTone?.isOpposite
+                  {typeof data.structuredExtraction.emotionalTone === 'object' && data.structuredExtraction.emotionalTone?.isOpposite
                     ? '⚠️ Polar Emotional Conflict'
-                    : `Tone: ${data.structuredExtraction.emotionalTone?.titleTone || 'Neutral'} • Lang: ${data.structuredExtraction.detectedLanguage?.titleLanguage || 'English'}`}
+                    : `Tone: ${typeof data.structuredExtraction.emotionalTone === 'object' ? (data.structuredExtraction.emotionalTone?.titleTone || data.structuredExtraction.emotionalTone?.thumbnailTone || 'Neutral') : (data.structuredExtraction.emotionalTone || 'Neutral')} • Lang: ${data.structuredExtraction.detectedLanguage?.titleLanguage || 'English'}`}
                 </p>
               </div>
             </div>

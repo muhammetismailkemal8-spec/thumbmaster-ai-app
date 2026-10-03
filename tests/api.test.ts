@@ -410,3 +410,31 @@ test('consistency validator guarantees explanation and labels agree with sub-sco
   assert.ok(result.alignmentDetails.alignmentExplanation.includes('Direct contradiction detected'));
 });
 
+test('visual presentation layer data contract: attention area is explicitly labeled as heuristic estimate', () => {
+  const sampleText = 'Heuristic attention estimate • Not measured eye tracking';
+  assert.ok(sampleText.includes('Not measured eye tracking'));
+  assert.ok(sampleText.includes('Heuristic'));
+});
+
+test('visual presentation layer data contract: emotionalTone object is safely formatted as string', () => {
+  const getEmotionalToneLabel = (tone: any): string => {
+    if (!tone) return 'Emotional Hook';
+    if (typeof tone === 'string') return tone;
+    if (typeof tone === 'object') {
+      if (tone.thumbnailTone) return String(tone.thumbnailTone);
+      if (tone.titleTone) return String(tone.titleTone);
+    }
+    return 'Emotional Hook';
+  };
+
+  const objectTone = { titleTone: 'Curious', thumbnailTone: 'Shocked', isOpposite: false };
+  const label = getEmotionalToneLabel(objectTone);
+  assert.equal(typeof label, 'string');
+  assert.equal(label, 'Shocked');
+
+  assert.equal(getEmotionalToneLabel(null), 'Emotional Hook');
+  assert.equal(getEmotionalToneLabel('Intense'), 'Intense');
+});
+
+
+

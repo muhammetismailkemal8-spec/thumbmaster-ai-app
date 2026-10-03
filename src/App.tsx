@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { ThumbnailForm } from './components/ThumbnailForm';
+import { YouTubeHomepagePreview } from './components/YouTubeHomepagePreview';
+import { InteractiveVisualAnalysis } from './components/InteractiveVisualAnalysis';
 import { AnalysisReportView } from './components/AnalysisReportView';
 import { ConceptGuideView } from './components/ConceptGuideView';
 import { YouTubeFeedPreview } from './components/YouTubeFeedPreview';
@@ -230,17 +232,33 @@ export default function App() {
               </div>
             )}
 
-            {/* Analysis Result View */}
+            {/* Analysis Result View - Structured in 3 sections */}
             {currentAnalysis && (
-              <AnalysisReportView
-                data={currentAnalysis}
-                onOpenSimulator={() => setActiveTab('simulator')}
-                onGenerateNewConcept={() => {
-                  if (lastInput) {
-                    handleFormSubmit({ ...lastInput, hasOwnThumbnail: false });
-                  }
-                }}
-              />
+              <div className="space-y-12">
+                {/* 1. YouTube Homepage Preview */}
+                <YouTubeHomepagePreview
+                  thumbnailUrl={currentAnalysis.uploadedImage || lastInput?.thumbnailImage}
+                  videoTitle={currentAnalysis.videoTitle || lastInput?.videoTitle}
+                  channelName="Creator Studio"
+                />
+
+                {/* 2. Interactive Visual Analysis */}
+                <InteractiveVisualAnalysis
+                  data={currentAnalysis}
+                  imageUrl={currentAnalysis.uploadedImage || lastInput?.thumbnailImage}
+                />
+
+                {/* 3. Existing Detailed Analysis */}
+                <AnalysisReportView
+                  data={currentAnalysis}
+                  onOpenSimulator={() => setActiveTab('simulator')}
+                  onGenerateNewConcept={() => {
+                    if (lastInput) {
+                      handleFormSubmit({ ...lastInput, hasOwnThumbnail: false });
+                    }
+                  }}
+                />
+              </div>
             )}
 
             {/* Concept Blueprint View */}
