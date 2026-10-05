@@ -355,6 +355,30 @@ test('hard scoring rules: strong emotional opposite caps alignment at 20 and ove
   assert.equal(emoResult.alignmentDetails.verdict, 'CONTRADICTORY_OR_UNRELATED');
 });
 
+test('hard scoring rules: video category mismatch (e.g. survival challenge tagged as Finance) caps alignment at 20 and overall at 42', async () => {
+  const { validateAndEnforceScoreConsistency } = await import('../api/_lib.js');
+
+  const catResult = validateAndEnforceScoreConsistency({
+    visualImpact: 92,
+    readability: 85,
+    curiosity: 95,
+    clarity: 85,
+    titleThumbnailAlignment: 90,
+    videoTitle: 'I Survived The Most Extreme Places On Earth',
+    summary: 'People trying to survive in the most extreme desert and arctic biomes with scorpions and snakes.',
+    category: 'Finance & Business',
+    targetAudience: 'Entrepreneurs & Investors',
+    structuredExtraction: {
+      mainTopic: 'Extreme biome survival challenge',
+    },
+  });
+
+  assert.ok(catResult.titleThumbnailAlignment <= 20, 'Alignment must be capped at 20 for category mismatch');
+  assert.ok(catResult.overallScore <= 42, 'Overall score must be capped at 42 for category mismatch');
+  assert.ok(catResult.isCapped, 'Must be marked as capped');
+  assert.ok(catResult.contradictions.some((c: any) => c.type === 'category_mismatch'), 'Must register category_mismatch conflict');
+});
+
 test('hard scoring rules: language mismatch for target audience penalizes readability and alignment', async () => {
   const { validateAndEnforceScoreConsistency } = await import('../api/_lib.js');
 

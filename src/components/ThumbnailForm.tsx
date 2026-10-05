@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Image as ImageIcon, Sparkles, X, Wand2, Flame } from 'lucide-react';
+import { Upload, Image as ImageIcon, Sparkles, X, Wand2, Flame, Lock } from 'lucide-react';
 import { VideoInput } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -94,6 +94,7 @@ export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoadin
   const [thumbnailImage, setThumbnailImage] = useState<string | null>(null);
   const [emotionGoal, setEmotionGoal] = useState(t.emotionShock);
   const [customStyle, setCustomStyle] = useState('Dramatic Lighting, High Contrast, Minimalist Text');
+  const [showBetaNotice, setShowBetaNotice] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -286,6 +287,7 @@ export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoadin
           </label>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Active Mode: Analyze Existing Thumbnail */}
             <button
               type="button"
               onClick={() => setHasOwnThumbnail(true)}
@@ -296,7 +298,7 @@ export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoadin
               }`}
             >
               <div
-                className={`p-2 rounded-lg ${
+                className={`p-2 rounded-lg shrink-0 ${
                   hasOwnThumbnail ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-400'
                 }`}
               >
@@ -308,29 +310,71 @@ export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoadin
               </div>
             </button>
 
+            {/* Restricted Beta Mode: No Thumbnail Yet (Design with AI) */}
             <button
               type="button"
-              onClick={() => setHasOwnThumbnail(false)}
-              className={`flex items-start space-x-3 p-4 rounded-xl border transition-all text-left cursor-pointer ${
-                !hasOwnThumbnail
-                  ? 'bg-rose-950/40 border-rose-500 text-white shadow-lg shadow-rose-950/30'
-                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-              }`}
+              onClick={() => setShowBetaNotice(true)}
+              className="flex items-start space-x-3 p-4 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-amber-500/50 hover:bg-slate-900/60 transition-all text-left cursor-pointer relative group"
             >
-              <div
-                className={`p-2 rounded-lg ${
-                  !hasOwnThumbnail ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-400'
-                }`}
-              >
+              <div className="p-2 rounded-lg bg-slate-800/90 text-amber-400 border border-amber-500/20 shrink-0 group-hover:border-amber-500/40">
                 <Wand2 className="w-5 h-5" />
               </div>
-              <div>
-                <span className="font-semibold text-sm block text-white">{t.modeNoImageTitle}</span>
+              <div className="flex-1 min-w-0 pr-1">
+                <div className="flex items-center space-x-2">
+                  <span className="font-semibold text-sm text-slate-200 group-hover:text-white">
+                    {t.modeNoImageTitle}
+                  </span>
+                  <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
+                    <Lock className="w-2.5 h-2.5 mr-0.5" />
+                    BETA
+                  </span>
+                </div>
                 <span className="text-xs text-slate-400 block mt-0.5">{t.modeNoImageSub}</span>
               </div>
             </button>
           </div>
         </div>
+
+        {/* Beta Notice Modal / Popup */}
+        {showBetaNotice && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-36 h-36 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+
+              <div className="flex items-start space-x-3.5">
+                <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 shrink-0 mt-0.5">
+                  <Lock className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <h3 className="text-base font-bold text-white">
+                      Feature in Closed Beta
+                    </h3>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      BETA
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                    AI-powered thumbnail generation from scratch is currently in <strong>Closed Beta</strong> and accessible to invited testers only.
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                    You can upload your existing YouTube thumbnail to run full CTR diagnostic audits and generate high-performance <strong>elevated AI prompts</strong> right now.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowBetaNotice(false)}
+                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl transition-colors cursor-pointer shadow-lg shadow-amber-500/20"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Mode A: Image Upload Area */}
         {hasOwnThumbnail ? (

@@ -1,5 +1,7 @@
 export type ContradictionType =
   | 'topic_mismatch'
+  | 'category_mismatch'
+  | 'audience_mismatch'
   | 'numeric_conflict'
   | 'brand_conflict'
   | 'model_conflict'
@@ -20,10 +22,25 @@ export interface ContradictionItem {
   confidence?: 'high' | 'medium' | 'low';
 }
 
+export interface CategoryAdherence {
+  selectedCategory: string;
+  detectedContentNiche: string;
+  isConsistent: boolean;
+  nicheSpecificCritique: string;
+}
+
+export interface TargetAudienceFit {
+  statedAudience: string;
+  appealScore: number;
+  personaSpecificCritique: string;
+}
+
 export interface StructuredExtraction {
   mainTopic: string;
   visibleObjects: string[];
   ocrText: string[];
+  categoryAdherence?: CategoryAdherence;
+  targetAudienceFit?: TargetAudienceFit;
   numbersAndQuantities: {
     titleNumbers: string[];
     thumbnailNumbers: string[];
@@ -240,6 +257,10 @@ export interface AnalysisResult {
   videoTitle?: string;
   videoTopic?: string;
   videoContext?: string;
+  category?: string;
+  targetAudience?: string;
+  categoryAdherence?: CategoryAdherence;
+  targetAudienceFit?: TargetAudienceFit;
 }
 
 export interface DetailedConceptBlueprint {

@@ -583,6 +583,53 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+              {/* Category & Niche Adherence */}
+              <div className={`p-2.5 rounded-lg border space-y-1 ${
+                data.structuredExtraction.categoryAdherence?.isConsistent === false
+                  ? 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+                  : 'bg-slate-900/80 border-slate-800 text-slate-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono uppercase text-slate-400">Category / Niche Standards</span>
+                  {data.structuredExtraction.categoryAdherence?.isConsistent === false ? (
+                    <span className="px-1.5 py-0.2 rounded bg-rose-900 text-[9px] font-bold text-rose-300">MISMATCH</span>
+                  ) : (
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-950 text-[9px] font-bold text-emerald-400">ALIGNED</span>
+                  )}
+                </div>
+                <p className="font-semibold text-xs text-white">
+                  {data.category || data.structuredExtraction.categoryAdherence?.selectedCategory || 'General'} 
+                  {data.structuredExtraction.categoryAdherence?.detectedContentNiche && (
+                    <span className="text-slate-400 font-normal"> (Detected: {data.structuredExtraction.categoryAdherence.detectedContentNiche})</span>
+                  )}
+                </p>
+                {data.structuredExtraction.categoryAdherence?.nicheSpecificCritique && (
+                  <p className="text-[11px] text-slate-300 leading-tight pt-0.5">
+                    {data.structuredExtraction.categoryAdherence.nicheSpecificCritique}
+                  </p>
+                )}
+              </div>
+
+              {/* Target Audience Persona Fit */}
+              <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">Target Audience Persona</span>
+                  {data.structuredExtraction.targetAudienceFit?.appealScore !== undefined && (
+                    <span className="text-[10px] font-mono font-bold text-amber-400">
+                      {data.structuredExtraction.targetAudienceFit.appealScore}/100 Fit
+                    </span>
+                  )}
+                </div>
+                <p className="font-semibold text-xs text-white">
+                  {data.targetAudience || data.structuredExtraction.targetAudienceFit?.statedAudience || 'General Audience'}
+                </p>
+                {data.structuredExtraction.targetAudienceFit?.personaSpecificCritique && (
+                  <p className="text-[11px] text-slate-300 leading-tight pt-0.5">
+                    {data.structuredExtraction.targetAudienceFit.personaSpecificCritique}
+                  </p>
+                )}
+              </div>
+
               {/* Main Topic */}
               <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
                 <span className="text-[10px] font-mono text-slate-400 uppercase block">Extracted Main Topic</span>

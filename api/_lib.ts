@@ -466,6 +466,7 @@ export interface ConsistencyValidationInput {
   weaknesses?: string[];
   videoTitle?: string;
   targetAudience?: string;
+  category?: string;
 }
 
 export function validateAndEnforceScoreConsistency(input: ConsistencyValidationInput): {
@@ -494,6 +495,73 @@ export function validateAndEnforceScoreConsistency(input: ConsistencyValidationI
   const contradictions: any[] = Array.isArray(input.contradictions) ? [...input.contradictions] : [];
   const extraction: any = input.structuredExtraction ? { ...input.structuredExtraction } : {};
   const alignmentDetails: any = input.alignmentDetails ? { ...input.alignmentDetails } : {};
+
+  // Check category adherence from structured extraction
+  if (extraction.categoryAdherence && extraction.categoryAdherence.isConsistent === false) {
+    const selectedCat = extraction.categoryAdherence.selectedCategory || input.category || 'Selected Category';
+    const detectedNiche = extraction.categoryAdherence.detectedContentNiche || 'Different Category';
+    const critique = extraction.categoryAdherence.nicheSpecificCritique || `Visual design does not align with ${selectedCat} standards.`;
+    if (!contradictions.some((c) => c.type === 'category_mismatch')) {
+      contradictions.push({
+        type: 'category_mismatch',
+        severity: 'critical',
+        description: `Video Category Conflict: Tagged as "${selectedCat}", but visual language and topic reflect "${detectedNiche}". ${critique}`,
+        titleValue: selectedCat,
+        thumbnailValue: detectedNiche,
+        confidence: 'high',
+      });
+    }
+  }
+
+  // Programmatic Category Heuristic Validator
+  const categoryStr = (input.category || '').toLowerCase();
+  const titleStr = (input.videoTitle || '').toLowerCase();
+  const summaryStr = (input.summary || '').toLowerCase();
+  const mainTopic = (extraction.mainTopic || '').toLowerCase();
+  const combinedText = `${titleStr} ${summaryStr} ${mainTopic}`;
+
+  if (categoryStr.includes('finance') || categoryStr.includes('business') || categoryStr.includes('finans')) {
+    const survivalOrGamingKeywords = [
+      'survived', 'survive', 'extreme places', 'hayatta kalma', 'minecraft', 'fortnite', 'roblox',
+      'eating only', 'scorpions', 'snakes', 'scorpion', 'snake', 'akrep', 'yılan', 'kaçtım',
+      'terk edilmiş', 'kutup', 'çöl', 'orman', 'last to leave', '24 hours in', 'extreme challenge'
+    ];
+    const isExtremeSurvivalOrGaming = survivalOrGamingKeywords.some(k => combinedText.includes(k));
+    const hasFinanceContext = [
+      'money', 'dollar', 'crypto', 'stock', 'invest', 'business', 'wealth', 'rich', 'poor',
+      'para', 'borsa', 'yatırım', 'şirket', 'gelir', 'kazanç', 'milyoner', 'bütçe', 'economy', 'finance', 'real estate'
+    ].some(k => combinedText.includes(k));
+
+    if (isExtremeSurvivalOrGaming && !hasFinanceContext) {
+      if (!contradictions.some(c => c.type === 'category_mismatch')) {
+        contradictions.push({
+          type: 'category_mismatch',
+          severity: 'critical',
+          description: `Video Category Mismatch: Tagged as "${input.category || 'Finance & Business'}", but the video title and thumbnail depict an extreme survival / challenge premise ("${extraction.mainTopic || input.videoTitle}"). Finance & Business audiences demand authority, credibility, and verified assets, which are completely clashing with this visual.`,
+          titleValue: input.category || 'Finance & Business',
+          thumbnailValue: 'Extreme Survival Challenge',
+          confidence: 'high',
+        });
+      }
+    }
+  }
+
+  if (categoryStr.includes('fitness') || categoryStr.includes('sports') || categoryStr.includes('spor')) {
+    const nonSportsKeywords = ['python', 'coding', 'javascript', 'bitcoin', 'crypto', 'how to code', 'financial analysis', 'stock market'];
+    const isNonSports = nonSportsKeywords.some(k => combinedText.includes(k));
+    if (isNonSports) {
+      if (!contradictions.some(c => c.type === 'category_mismatch')) {
+        contradictions.push({
+          type: 'category_mismatch',
+          severity: 'critical',
+          description: `Video Category Mismatch: Tagged as "${input.category || 'Fitness & Sports'}", but the content focuses on software / finance without any athletic or fitness element.`,
+          titleValue: input.category || 'Fitness & Sports',
+          thumbnailValue: 'Software / Non-Sports Topic',
+          confidence: 'high',
+        });
+      }
+    }
+  }
 
   // Check structured extraction fields to register any unmapped conflicts
   if (extraction.numbersAndQuantities?.hasConflict) {
@@ -655,6 +723,17 @@ export function validateAndEnforceScoreConsistency(input: ConsistencyValidationI
       overallCap = Math.min(overallCap, 40);
       capReason = capReason || `Semantic polarity conflict: Visual properties contradict key premise "${c.titleValue}".`;
       hasDirectContradiction = true;
+    } else if (c.type === 'category_mismatch') {
+      alignmentCap = Math.min(alignmentCap, 20);
+      overallCap = Math.min(overallCap, 42);
+      capReason = capReason || `Video Category Mismatch: Tagged as "${c.titleValue}" but content and visuals reflect "${c.thumbnailValue}". Visual expectations for "${c.titleValue}" are not met.`;
+      hasDirectContradiction = true;
+    } else if (c.type === 'audience_mismatch') {
+      curiosity = Math.min(curiosity, 45);
+      titleThumbnailAlignment = Math.min(titleThumbnailAlignment, 45);
+      if (!capReason) {
+        capReason = `Target Audience Mismatch: Thumbnail visual framing fails to appeal to "${c.titleValue}".`;
+      }
     } else if (c.type === 'language_mismatch') {
       // Meaningful readability and alignment penalty for stated audience
       readability = Math.min(readability, 50);
@@ -820,10 +899,11 @@ export async function generateContentWithFallback(
   operationName: string
 ): Promise<string> {
   const candidateModels: Array<{ model: string; thinkingBudget?: number }> = [
-    { model: 'gemini-3.7-flash', thinkingBudget: 0 },
-    { model: 'gemini-2.5-flash', thinkingBudget: undefined },
-    { model: 'gemini-2.5-flash-lite', thinkingBudget: undefined },
     { model: 'gemini-3.1-flash-lite', thinkingBudget: undefined },
+    { model: 'gemini-3.7-flash', thinkingBudget: undefined },
+    { model: 'gemini-3.5-flash-lite', thinkingBudget: undefined },
+    { model: 'gemini-flash-latest', thinkingBudget: undefined },
+    { model: 'gemini-3.8-flash', thinkingBudget: undefined },
   ];
 
   let lastError: any = null;
@@ -982,9 +1062,24 @@ CRITICAL MULTILINGUAL & CROSS-LINGUAL UNDERSTANDING:
 The provided Video Title and Topic may be in ANY language (such as Turkish, English, Spanish, German, French, etc.).
 Accurately decode the true semantic intent, topic, numbers, brands, and emotional tone of the title in its native language before conducting your evaluation.
 
-1. STRUCTURED CONTRADICTION DETECTION LAYER:
-Before calculating final scores, extract structured entities from the title, description, target audience, and thumbnail:
+1. CATEGORY & TARGET AUDIENCE PERSONA EVALUATION MATRIX:
+You MUST evaluate the thumbnail through the specific visual culture, audience expectations, and conversion benchmarks of the provided Video Category and Target Audience Persona:
+- Finance & Business: Expects authority, wealth/asset proof, net worth, charts/metrics, verified results, professional studio lighting, and high-trust framing. Extreme survival mud/blood, cartoonish gaming assets, or chaotic stunts clashing with Finance must be severely penalized and flagged as 'category_mismatch'.
+- Fitness & Sports: Expects athletic physique/body definition, kinetic motion blur, energetic intensity, technique clarity, and high physical stakes.
+- Tech & Software: Expects sleek device/hardware clarity, clean UI elements, modern aesthetic lighting, precision, and high developer/enthusiast appeal.
+- Education & Tutorial: Expects high legibility, clean pedagogical diagrams, low cognitive clutter, high trust, and clear solution framing.
+- Gaming & Challenge: Expects high saturation, extreme in-game or challenge tension, expressive reaction faces, and immediate visual gameplay stakes.
+- Science & Documentary: Expects cinematic scale, awe, factual intrigue, natural phenomena, and narrative mystery.
+- Vlog & Lifestyle: Expects candid authenticity, aesthetic composition, and genuine human connection.
+- Entertainment & Comedy: Expects punchy visual premise, situational irony, and exaggerated expressive faces.
+
+If the thumbnail or video premise blatantly clashes with the user's selected Category (e.g. survival challenge in Finance, or cooking in Gaming), you MUST set 'isConsistent: false' in 'categoryAdherence' and record a 'category_mismatch' contradiction!
+
+2. STRUCTURED CONTRADICTION DETECTION LAYER:
+Before calculating final scores, extract structured entities from the title, description, category, target audience, and thumbnail:
 - Main topic
+- Category adherence (selected category vs detected content niche, isConsistent, nicheSpecificCritique)
+- Target audience fit (stated audience, appealScore 0-100, personaSpecificCritique)
 - Visible objects
 - OCR text (exact readable words in thumbnail)
 - Numbers and quantities (title numbers vs thumbnail numbers)
@@ -999,7 +1094,9 @@ Before calculating final scores, extract structured entities from the title, des
 - Visual quality (low, medium, high)
 - Confidence level for every detection
 
-Then cross-reference the title promise with thumbnail evidence to identify contradictions:
+Then cross-reference the title promise, category, and audience with thumbnail evidence to identify contradictions:
+- category_mismatch: Video/thumbnail content completely belongs to a different genre/niche than the selected Category (e.g. outdoor survival challenge tagged as Finance & Business).
+- audience_mismatch: Thumbnail visual framing fails to appeal to the stated Target Audience Persona.
 - topic_mismatch: Completely unrelated topic/niche (e.g. video game title with cooking recipe thumbnail).
 - numeric_conflict: Direct numeric contradiction (e.g. title says 100, thumbnail explicitly displays 1,000). Both detected values must be explicitly recorded.
 - brand_conflict: Direct brand mismatch (e.g. title promises iPhone, thumbnail shows Samsung).
@@ -1011,7 +1108,7 @@ Then cross-reference the title promise with thumbnail evidence to identify contr
 - unsupported_claim, duplicate_information, insufficient_evidence.
 
 Distinguish clearly between:
-1. Completely unrelated content (topic_mismatch).
+1. Completely unrelated content or category mismatch (category_mismatch / topic_mismatch).
 2. Same category but wrong subject, brand, model, number, or person.
 3. Relevant but visually weak thumbnail.
 4. Visually strong but irrelevant thumbnail.
@@ -1020,8 +1117,9 @@ Distinguish clearly between:
 7. Representative Moment: A thumbnail illustrating one representative moment, human climax, or single character from a larger video premise (e.g. title "We fulfilled the biggest dreams of 100 children", thumbnail shows 1 child meeting a celebrity). This is a VALID REPRESENTATIVE MOMENT and COMPLEMENTARY PAIR, NOT A NUMERIC CONFLICT. Do not require every number, crowd member, or event to appear in the image!
 Do not confuse "related" with "good".
 
-2. HARD SCORING RULES FOR DIRECT CONFLICTS:
+3. HARD SCORING RULES FOR DIRECT CONFLICTS:
 The textual explanation and numerical score must agree. Apply deterministic penalties:
+- Category mismatch: Alignment score must not exceed 20. Overall score must not exceed 42.
 - Completely unrelated topic: Alignment score must be between 0 and 15. Overall score must not exceed 35.
 - Direct numeric contradiction: Alignment score must not exceed 20. Overall score must not exceed 40. Report must explicitly show both detected values.
 - Direct brand/model contradiction: Alignment score must not exceed 15. Overall score must not exceed 40.
@@ -1190,6 +1288,27 @@ Category / Niche: "${category || 'General'}"`;
               description: 'Extracted entity structure and title-thumbnail comparison',
               properties: {
                 mainTopic: { type: Type.STRING, description: 'Core topic of the video' },
+                categoryAdherence: {
+                  type: Type.OBJECT,
+                  description: 'Evaluation of visual design specifically against the expectations and standards of the selected video category',
+                  properties: {
+                    selectedCategory: { type: Type.STRING },
+                    detectedContentNiche: { type: Type.STRING },
+                    isConsistent: { type: Type.BOOLEAN, description: 'False if content or visual language blatantly clashes with selected category' },
+                    nicheSpecificCritique: { type: Type.STRING, description: 'Critique through the lens of this category standards' },
+                  },
+                  required: ['selectedCategory', 'detectedContentNiche', 'isConsistent', 'nicheSpecificCritique'],
+                },
+                targetAudienceFit: {
+                  type: Type.OBJECT,
+                  description: 'Evaluation of visual design appeal for the specified target audience persona',
+                  properties: {
+                    statedAudience: { type: Type.STRING },
+                    appealScore: { type: Type.NUMBER, description: 'Score 0-100 indicating appeal to this persona' },
+                    personaSpecificCritique: { type: Type.STRING },
+                  },
+                  required: ['statedAudience', 'appealScore', 'personaSpecificCritique'],
+                },
                 visibleObjects: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Visible objects detected in thumbnail' },
                 ocrText: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Exact text or words visible in thumbnail' },
                 numbersAndQuantities: {
@@ -1290,7 +1409,7 @@ Category / Niche: "${category || 'General'}"`;
                 properties: {
                   type: {
                     type: Type.STRING,
-                    description: 'One of: topic_mismatch, numeric_conflict, brand_conflict, model_conflict, person_mismatch, emotional_conflict, adjective_polarity_conflict, language_mismatch, unsupported_claim, duplicate_information, insufficient_evidence',
+                    description: 'One of: category_mismatch, audience_mismatch, topic_mismatch, numeric_conflict, brand_conflict, model_conflict, person_mismatch, emotional_conflict, adjective_polarity_conflict, language_mismatch, unsupported_claim, duplicate_information, insufficient_evidence',
                   },
                   severity: { type: Type.STRING, description: 'critical, major, or minor' },
                   description: { type: Type.STRING, description: 'Clear explanation of the conflict' },
@@ -1605,6 +1724,7 @@ Category / Niche: "${category || 'General'}"`;
       weaknesses: parsedData.weaknesses,
       videoTitle,
       targetAudience,
+      category,
     });
 
     const visualImpact = consistencyResult.visualImpact;
@@ -1623,6 +1743,14 @@ Category / Niche: "${category || 'General'}"`;
     parsedData.contradictions = consistencyResult.contradictions;
     parsedData.structuredExtraction = consistencyResult.structuredExtraction;
     parsedData.alignmentDetails = consistencyResult.alignmentDetails;
+    parsedData.category = category;
+    parsedData.targetAudience = targetAudience;
+    if (parsedData.structuredExtraction?.categoryAdherence) {
+      parsedData.categoryAdherence = parsedData.structuredExtraction.categoryAdherence;
+    }
+    if (parsedData.structuredExtraction?.targetAudienceFit) {
+      parsedData.targetAudienceFit = parsedData.structuredExtraction.targetAudienceFit;
+    }
 
     // Normalize Prioritized Improvements (Max 3)
     let prioritizedImprovements: any[] = [];
