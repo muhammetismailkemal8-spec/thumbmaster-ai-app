@@ -3,7 +3,7 @@ import { Header } from './components/Header';
 import { ThumbnailForm } from './components/ThumbnailForm';
 import { YouTubeHomepagePreview } from './components/YouTubeHomepagePreview';
 import { InteractiveVisualAnalysis } from './components/InteractiveVisualAnalysis';
-import { AnalysisReportView } from './components/AnalysisReportView';
+import { AnalysisReportView, AnalysisOverviewBanner } from './components/AnalysisReportView';
 import { ConceptGuideView } from './components/ConceptGuideView';
 import { YouTubeFeedPreview } from './components/YouTubeFeedPreview';
 import { IdeaStrategyView } from './components/IdeaStrategyView';
@@ -120,6 +120,7 @@ export default function App() {
         const resData = await postApiJson('/api/analyze-thumbnail', {
           videoTitle: input.videoTitle,
           videoTopic: input.videoTopic,
+          videoContext: input.videoContext,
           targetAudience: input.targetAudience,
           category: input.category,
           imageBase64: input.thumbnailImage,
@@ -130,6 +131,7 @@ export default function App() {
           uploadedImage: input.thumbnailImage,
           videoTitle: input.videoTitle,
           videoTopic: input.videoTopic,
+          videoContext: input.videoContext,
         };
 
         setCurrentAnalysis(analysisData);
@@ -154,6 +156,7 @@ export default function App() {
         const resData = await postApiJson('/api/generate-thumbnail-concept', {
           videoTitle: input.videoTitle,
           videoTopic: input.videoTopic,
+          videoContext: input.videoContext,
           targetAudience: input.targetAudience,
           category: input.category,
           emotionGoal: input.emotionGoal,
@@ -232,25 +235,37 @@ export default function App() {
               </div>
             )}
 
-            {/* Analysis Result View - Structured in 3 sections */}
+            {/* Analysis Result View - Structured with Overview Banner at the very top */}
             {currentAnalysis && (
               <div className="space-y-12">
-                {/* 1. YouTube Homepage Preview */}
+                {/* 1. Overview Banner & Score Summary (Placed at the very top) */}
+                <AnalysisOverviewBanner
+                  data={currentAnalysis}
+                  onOpenSimulator={() => setActiveTab('simulator')}
+                  onGenerateNewConcept={() => {
+                    if (lastInput) {
+                      handleFormSubmit({ ...lastInput, hasOwnThumbnail: false });
+                    }
+                  }}
+                />
+
+                {/* 2. YouTube Homepage Preview */}
                 <YouTubeHomepagePreview
                   thumbnailUrl={currentAnalysis.uploadedImage || lastInput?.thumbnailImage}
                   videoTitle={currentAnalysis.videoTitle || lastInput?.videoTitle}
                   channelName="Creator Studio"
                 />
 
-                {/* 2. Interactive Visual Analysis */}
+                {/* 3. Interactive Visual Analysis */}
                 <InteractiveVisualAnalysis
                   data={currentAnalysis}
                   imageUrl={currentAnalysis.uploadedImage || lastInput?.thumbnailImage}
                 />
 
-                {/* 3. Existing Detailed Analysis */}
+                {/* 4. Detailed Analysis Report */}
                 <AnalysisReportView
                   data={currentAnalysis}
+                  showOverviewBanner={false}
                   onOpenSimulator={() => setActiveTab('simulator')}
                   onGenerateNewConcept={() => {
                     if (lastInput) {

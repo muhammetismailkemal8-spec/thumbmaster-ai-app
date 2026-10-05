@@ -15,6 +15,7 @@ import {
   Info,
   ShieldAlert,
   Sparkles,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 interface InteractiveVisualAnalysisProps {
@@ -41,6 +42,22 @@ interface CategoryConfig {
   badge?: string;
   badgeColor?: string;
 }
+
+const getScorePillStyle = (score: number, isActive: boolean) => {
+  if (isActive) {
+    return 'bg-white text-rose-950 shadow-md ring-2 ring-white/70 font-black';
+  }
+  if (score >= 90) {
+    return 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/60 shadow-[0_0_12px_rgba(16,185,129,0.35)] ring-1 ring-emerald-400/40';
+  }
+  if (score >= 75) {
+    return 'bg-sky-500/25 text-sky-300 border border-sky-400/60 shadow-[0_0_12px_rgba(14,165,233,0.35)] ring-1 ring-sky-400/40';
+  }
+  if (score >= 50) {
+    return 'bg-amber-500/25 text-amber-300 border border-amber-400/60 shadow-[0_0_12px_rgba(245,158,11,0.35)] ring-1 ring-amber-400/40';
+  }
+  return 'bg-rose-500/30 text-rose-200 border border-rose-400/70 shadow-[0_0_12px_rgba(244,63,94,0.4)] ring-1 ring-rose-400/50';
+};
 
 const getEmotionalToneLabel = (tone: any): string => {
   if (!tone) return 'Emotional Hook';
@@ -145,6 +162,7 @@ export const InteractiveVisualAnalysis: React.FC<InteractiveVisualAnalysisProps>
       label: 'Clutter',
       icon: Layers,
       isAvailable: hasClutterData,
+      score: data.clarity,
       badge: data.perceptionAnalysis?.cognitiveLoadVerdict?.replace('_', ' ') || 'Load',
       badgeColor:
         data.perceptionAnalysis?.cognitiveLoadVerdict === 'COGNITIVE_OVERLOAD'
@@ -240,51 +258,92 @@ export const InteractiveVisualAnalysis: React.FC<InteractiveVisualAnalysisProps>
           </div>
         </div>
 
-        {/* Category Selection Filter Pills */}
-        <div className="mt-5 pt-4 border-t border-slate-800/80 flex flex-wrap items-center gap-2">
-          {categories.map((cat) => {
-            const Icon = cat.icon;
-            const isActive = selectedCategory === cat.key;
-            const isRedAlert = cat.key === 'contradictions';
+        {/* Category Selection Filter Pills with Eye-Catching Scores */}
+        <div className="mt-5 pt-4 border-t border-slate-800/80 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div className="flex items-center space-x-2">
+              <span className="font-bold text-slate-200 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-rose-400" />
+                <span>Diagnostic Category Scores</span>
+              </span>
+              <span className="hidden sm:inline text-slate-500 text-[11px]">• Click to toggle interactive overlay</span>
+            </div>
+            <div className="flex items-center space-x-3 text-[10px] font-mono">
+              <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" /> 90+ Strong
+              </span>
+              <span className="flex items-center gap-1.5 text-sky-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.9)]" /> 75+ Good
+              </span>
+              <span className="flex items-center gap-1.5 text-amber-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]" /> &lt;75 Needs Work
+              </span>
+            </div>
+          </div>
 
-            return (
-              <button
-                key={cat.key}
-                type="button"
-                onClick={() => handleCategoryClick(cat.key)}
-                className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm ${
-                  isActive
-                    ? isRedAlert
-                      ? 'bg-red-600 text-white shadow-red-600/30 shadow-md ring-2 ring-red-400'
-                      : 'bg-rose-600 text-white shadow-rose-600/30 shadow-md ring-2 ring-rose-400'
-                    : isRedAlert
-                    ? 'bg-red-950/40 text-red-300 border border-red-800/60 hover:bg-red-900/40'
-                    : 'bg-slate-950 text-slate-300 border border-slate-800 hover:text-white hover:border-slate-700'
-                }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span>{cat.label}</span>
-                {cat.score !== undefined && (
-                  <span
-                    className={`ml-1 text-[11px] px-1.5 py-0.5 rounded font-mono ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+            {categories.map((cat) => {
+              const Icon = cat.icon;
+              const isActive = selectedCategory === cat.key;
+              const isRedAlert = cat.key === 'contradictions';
+
+              return (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => handleCategoryClick(cat.key)}
+                  className={`group flex items-center space-x-2.5 px-3.5 sm:px-4 py-2.5 rounded-xl text-xs sm:text-[13px] font-bold transition-all duration-200 shadow-sm cursor-pointer select-none ${
+                    isActive
+                      ? isRedAlert
+                        ? 'bg-red-600 text-white shadow-lg shadow-red-600/40 ring-2 ring-red-400 scale-[1.02]'
+                        : 'bg-rose-600 text-white shadow-lg shadow-rose-600/40 ring-2 ring-rose-400 scale-[1.02]'
+                      : isRedAlert
+                      ? 'bg-red-950/60 text-red-200 border-2 border-red-700/80 hover:bg-red-900/50 hover:border-red-600'
+                      : 'bg-slate-950/90 text-slate-100 border border-slate-800 hover:border-slate-700 hover:bg-slate-900 hover:shadow-md'
+                  }`}
+                >
+                  <Icon
+                    className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${
+                      isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'
                     }`}
-                  >
-                    {cat.score}
-                  </span>
-                )}
-                {cat.badge && cat.score === undefined && (
-                  <span
-                    className={`ml-1 text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider font-bold ${
-                      isActive ? 'bg-white/20 text-white' : cat.badgeColor || 'bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {cat.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                  />
+                  <span className="tracking-tight">{cat.label}</span>
+
+                  {cat.score !== undefined ? (
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg transition-all ${getScorePillStyle(
+                        cat.score,
+                        isActive
+                      )}`}
+                    >
+                      <span className="text-xs sm:text-sm font-black font-mono tracking-tight leading-none">
+                        {cat.score}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold leading-none ${
+                          isActive ? 'text-rose-900' : 'opacity-70'
+                        }`}
+                      >
+                        /100
+                      </span>
+                    </span>
+                  ) : cat.badge ? (
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-sm ${
+                        isActive
+                          ? 'bg-white text-rose-950 ring-2 ring-white/60 font-black'
+                          : cat.key === 'contradictions'
+                          ? 'bg-red-500/30 text-red-200 border border-red-500/70 shadow-[0_0_10px_rgba(239,68,68,0.3)] ring-1 ring-red-400/40'
+                          : cat.badgeColor || 'bg-slate-800 text-slate-200 border border-slate-700'
+                      }`}
+                    >
+                      {cat.badge}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -568,12 +627,20 @@ export const InteractiveVisualAnalysis: React.FC<InteractiveVisualAnalysisProps>
                     data.perceptionAnalysis?.figureGroundSalience ||
                     data.summary}
                 </p>
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1">
-                  <div className="flex justify-between text-slate-400">
-                    <span>Visual Impact Score:</span>
-                    <span className="font-bold text-white">{data.visualImpact ?? 75}/100</span>
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-2">
+                  <div className="flex justify-between items-center text-slate-400">
+                    <span className="font-medium">Visual Impact Score:</span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg ${getScorePillStyle(
+                        data.visualImpact ?? 75,
+                        false
+                      )}`}
+                    >
+                      <span className="font-mono font-black text-xs">{data.visualImpact ?? 75}</span>
+                      <span className="text-[10px] font-bold opacity-70">/100</span>
+                    </span>
                   </div>
-                  <div className="flex justify-between text-slate-400">
+                  <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-slate-900">
                     <span>Glance Speed:</span>
                     <span className="text-emerald-400 font-medium">Subconscious Rapid Parse</span>
                   </div>
@@ -590,24 +657,36 @@ export const InteractiveVisualAnalysis: React.FC<InteractiveVisualAnalysisProps>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   {data.textOverlayFeedback || 'Clear text overlay helps communicate the video hook in rapid scrolling.'}
                 </p>
-                {data.structuredExtraction?.thumbnailTextAmount && (
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1">
-                    <div className="flex justify-between text-slate-400">
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-2">
+                  <div className="flex justify-between items-center text-slate-400">
+                    <span className="font-medium">Readability Score:</span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg ${getScorePillStyle(
+                        data.readability ?? 70,
+                        false
+                      )}`}
+                    >
+                      <span className="font-mono font-black text-xs">{data.readability ?? 70}</span>
+                      <span className="text-[10px] font-bold opacity-70">/100</span>
+                    </span>
+                  </div>
+                  {data.structuredExtraction?.thumbnailTextAmount && (
+                    <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-slate-900">
                       <span>Detected Text Volume:</span>
-                      <span className="font-bold text-white">
+                      <span className="font-bold text-white uppercase text-[11px] bg-slate-850 px-2 py-0.5 rounded">
                         {data.structuredExtraction.thumbnailTextAmount}
                       </span>
                     </div>
-                    {data.structuredExtraction.ocrText && getOcrTextDisplay(data.structuredExtraction.ocrText) && (
-                      <div className="pt-1 text-slate-400 border-t border-slate-850">
-                        <span className="block text-[11px] text-slate-500">OCR Extracted Text:</span>
-                        <span className="font-mono text-emerald-300 text-[11px]">
-                          "{getOcrTextDisplay(data.structuredExtraction.ocrText)}"
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
+                  {data.structuredExtraction?.ocrText && getOcrTextDisplay(data.structuredExtraction.ocrText) && (
+                    <div className="pt-1.5 text-slate-400 border-t border-slate-900">
+                      <span className="block text-[11px] text-slate-500 mb-0.5">OCR Extracted Text:</span>
+                      <span className="font-mono text-emerald-300 text-[11px] bg-slate-900 px-2 py-1 rounded block">
+                        "{getOcrTextDisplay(data.structuredExtraction.ocrText)}"
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -620,6 +699,20 @@ export const InteractiveVisualAnalysis: React.FC<InteractiveVisualAnalysisProps>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   Viewers naturally trace high-contrast focal points before resolving secondary elements.
                 </p>
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs mb-2">
+                  <div className="flex justify-between items-center text-slate-400">
+                    <span className="font-medium">Hierarchy Clarity:</span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg ${getScorePillStyle(
+                        data.clarity ?? 75,
+                        false
+                      )}`}
+                    >
+                      <span className="font-mono font-black text-xs">{data.clarity ?? 75}</span>
+                      <span className="text-[10px] font-bold opacity-70">/100</span>
+                    </span>
+                  </div>
+                </div>
                 <div className="space-y-2">
                   {(data.perceptionAnalysis?.visualScanpath || [
                     'Fixation 1: Primary high-contrast focal subject',
@@ -649,14 +742,22 @@ export const InteractiveVisualAnalysis: React.FC<InteractiveVisualAnalysisProps>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   Excess visual noise slows down comprehension and decreases click propensity on small mobile feeds.
                 </p>
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1">
-                  <div className="flex justify-between text-slate-400">
-                    <span>Clarity Metric:</span>
-                    <span className="font-bold text-white">{data.clarity ?? 75}/100</span>
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-2">
+                  <div className="flex justify-between items-center text-slate-400">
+                    <span className="font-medium">Clarity Score:</span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg ${getScorePillStyle(
+                        data.clarity ?? 75,
+                        false
+                      )}`}
+                    >
+                      <span className="font-mono font-black text-xs">{data.clarity ?? 75}</span>
+                      <span className="text-[10px] font-bold opacity-70">/100</span>
+                    </span>
                   </div>
-                  <div className="flex justify-between text-slate-400">
+                  <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-slate-900">
                     <span>Load Verdict:</span>
-                    <span className="font-bold text-amber-300">
+                    <span className="font-bold text-amber-300 uppercase text-[11px] bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
                       {data.perceptionAnalysis?.cognitiveLoadVerdict?.replace('_', ' ') || 'OPTIMAL'}
                     </span>
                   </div>
@@ -674,22 +775,36 @@ export const InteractiveVisualAnalysis: React.FC<InteractiveVisualAnalysisProps>
                   {data.faceExpressionFeedback ||
                     'Emotional tension and curiosity gaps evoke click action by challenging viewer expectations.'}
                 </p>
-                {data.structuredExtraction?.emotionalTone && (
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1">
-                    <div className="flex justify-between text-slate-400">
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-2">
+                  {data.curiosity !== undefined && (
+                    <div className="flex justify-between items-center text-slate-400">
+                      <span className="font-medium">Curiosity Hook:</span>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg ${getScorePillStyle(
+                          data.curiosity,
+                          false
+                        )}`}
+                      >
+                        <span className="font-mono font-black text-xs">{data.curiosity}</span>
+                        <span className="text-[10px] font-bold opacity-70">/100</span>
+                      </span>
+                    </div>
+                  )}
+                  {data.structuredExtraction?.emotionalTone && (
+                    <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-slate-900">
                       <span>Detected Tone:</span>
                       <span className="font-bold text-purple-300">
                         {getEmotionalToneLabel(data.structuredExtraction.emotionalTone)}
                       </span>
                     </div>
-                    {typeof data.structuredExtraction.emotionalTone === 'object' &&
-                      data.structuredExtraction.emotionalTone.isOpposite && (
-                        <p className="text-[11px] text-rose-400 font-medium pt-1 border-t border-slate-800">
-                          ⚠️ Polar opposite emotional tone detected between title and thumbnail
-                        </p>
-                      )}
-                  </div>
-                )}
+                  )}
+                  {typeof data.structuredExtraction?.emotionalTone === 'object' &&
+                    data.structuredExtraction.emotionalTone.isOpposite && (
+                      <p className="text-[11px] text-rose-400 font-medium pt-1 border-t border-slate-800">
+                        ⚠️ Polar opposite emotional tone detected between title and thumbnail
+                      </p>
+                    )}
+                </div>
               </div>
             )}
 
@@ -703,16 +818,24 @@ export const InteractiveVisualAnalysis: React.FC<InteractiveVisualAnalysisProps>
                   {data.alignmentDetails?.alignmentExplanation ||
                     'Strong synergy occurs when the thumbnail delivers visual evidence for the promise made in the title.'}
                 </p>
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1.5">
-                  <div className="flex justify-between text-slate-400">
-                    <span>Synergy Score:</span>
-                    <span className="font-bold text-white">
-                      {data.titleThumbnailAlignment ?? 85}/100
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-2">
+                  <div className="flex justify-between items-center text-slate-400">
+                    <span className="font-medium">Synergy Score:</span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg ${getScorePillStyle(
+                        data.titleThumbnailAlignment ?? 85,
+                        false
+                      )}`}
+                    >
+                      <span className="font-mono font-black text-xs">
+                        {data.titleThumbnailAlignment ?? 85}
+                      </span>
+                      <span className="text-[10px] font-bold opacity-70">/100</span>
                     </span>
                   </div>
-                  <div className="flex justify-between text-slate-400">
+                  <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-slate-900">
                     <span>Verdict:</span>
-                    <span className="font-bold text-emerald-400">
+                    <span className="font-bold text-emerald-400 uppercase text-[11px] bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">
                       {data.alignmentDetails?.verdict?.replace(/_/g, ' ') || 'MATCH'}
                     </span>
                   </div>

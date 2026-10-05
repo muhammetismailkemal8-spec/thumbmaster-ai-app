@@ -3,17 +3,113 @@ import { AnalysisResult } from '../types';
 import { CheckCircle2, AlertTriangle, Lightbulb, Eye, Flame, Award, Smartphone, Type as TypeIcon, Sparkles, Wand2, Copy, Check, Brain } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { EvolutionaryPsychologyAudit } from './EvolutionaryPsychologyAudit';
+import { buildThumbnailPrompt } from '../utils/thumbnailPrompt';
+
+export interface AnalysisOverviewBannerProps {
+  data: AnalysisResult;
+  onOpenSimulator: () => void;
+  onGenerateNewConcept: () => void;
+}
+
+export const AnalysisOverviewBanner: React.FC<AnalysisOverviewBannerProps> = ({
+  data,
+  onOpenSimulator,
+  onGenerateNewConcept,
+}) => {
+  const { t } = useLanguage();
+
+  const getGradeColor = (grade: string) => {
+    if (grade.startsWith('A')) return 'from-emerald-500 to-teal-400 text-emerald-400 border-emerald-500/30';
+    if (grade.startsWith('B')) return 'from-amber-500 to-yellow-400 text-amber-400 border-amber-500/30';
+    return 'from-rose-500 to-red-400 text-rose-400 border-rose-500/30';
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto px-4">
+      <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+          {/* Main Thumbnail Preview if available */}
+          {data.uploadedImage && (
+            <div className="w-full md:w-72 aspect-video rounded-xl overflow-hidden border border-slate-700 bg-black shadow-lg shrink-0 relative group">
+              <img src={data.uploadedImage} alt="Analyzed thumbnail" className="w-full h-full object-cover" />
+              <div className="absolute top-2 left-2 bg-slate-900/80 text-xs px-2 py-0.5 rounded text-slate-300 font-mono">
+                {t.analyzedThumbnail}
+              </div>
+            </div>
+          )}
+
+          {/* Title & CTR Score Display */}
+          <div className="flex-1 space-y-3">
+            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-rose-400 font-semibold">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{t.reportBadge}</span>
+            </div>
+
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+              "{data.videoTitle || 'YouTube Video'}"
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 line-clamp-2">
+              {data.videoTopic}
+            </p>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                onClick={onOpenSimulator}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-semibold text-slate-200 flex items-center space-x-2 transition-colors cursor-pointer"
+              >
+                <Eye className="w-4 h-4 text-amber-400" />
+                <span>{t.btnSimulator}</span>
+              </button>
+
+              <button
+                onClick={onGenerateNewConcept}
+                className="px-4 py-2 bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 rounded-lg text-xs font-semibold text-rose-300 flex items-center space-x-2 transition-colors cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-rose-400" />
+                <span>{t.btnAlternative}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Big Score Badge */}
+          <div className="flex flex-col items-center justify-center p-6 bg-slate-950/80 rounded-2xl border border-slate-800 min-w-[190px]">
+            <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-1">{t.ctrPotential}</span>
+            <div className="flex items-baseline space-x-1">
+              <span className="text-4xl font-extrabold text-white">{data.overallCtrScore}</span>
+              <span className="text-sm text-slate-400">/100</span>
+            </div>
+            <div className={`mt-2 px-3 py-0.5 text-xs font-extrabold rounded-full border bg-slate-900 ${getGradeColor(data.ctrGrade)}`}>
+              {t.gradeLabel}: {data.ctrGrade}
+            </div>
+            {data.isCapped && (
+              <span className="mt-1.5 px-2 py-0.5 text-[9px] font-bold rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-center">
+                Hard Cap: {data.appliedCap}/100
+              </span>
+            )}
+            <span className="mt-1.5 text-[10px] text-slate-400 font-mono text-center">
+              Heuristic Assessment
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface AnalysisReportViewProps {
   data: AnalysisResult;
   onOpenSimulator: () => void;
   onGenerateNewConcept: () => void;
+  showOverviewBanner?: boolean;
 }
 
 export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
   data,
   onOpenSimulator,
   onGenerateNewConcept,
+  showOverviewBanner = true,
 }) => {
   const { t } = useLanguage();
   const [copiedPrompt, setCopiedPrompt] = useState<boolean>(false);
@@ -24,30 +120,7 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
     setTimeout(() => setCopiedPrompt(false), 2000);
   };
 
-  const generateDetailedPrompt = (data: AnalysisResult): string => {
-    if (data.aiImagePrompt && data.aiImagePrompt.trim().length > 30) {
-      return data.aiImagePrompt;
-    }
-
-    const concept = data.abTestDetails?.thumbnailConcept;
-    const mainObj = concept?.mainObject || `Expressive focal subject representing ${data.videoTitle || 'the video'}`;
-    const bg = concept?.background || `Vibrant contrasting background with strong depth of field`;
-    const lighting = concept?.lighting || `Dramatic cinematic lighting with intense contrast and vibrant glows`;
-    const colors = concept?.colorPalette || `High-contrast vibrant YouTube thumbnail color palette`;
-    const camera = concept?.cameraAngle || `Close-up dynamic angle with clear focal emphasis`;
-    const emotion = concept?.targetEmotion || `Curiosity, shock, and high energy`;
-    const textHook = concept?.textOverlay || '';
-
-    const weaknessesStr = data.weaknesses && data.weaknesses.length > 0
-      ? ` Designed to overcome key thumbnail flaws: ${data.weaknesses.join('; ')}.`
-      : '';
-
-    const textOverlayStr = textHook ? ` Clean bold text overlay reading "${textHook}" in high-contrast typography.` : '';
-
-    return `Cinematic 16:9 YouTube thumbnail image for video titled "${data.videoTitle || 'YouTube Video'}". Main Subject: ${mainObj}. Background: ${bg}. Lighting: ${lighting}. Camera Angle: ${camera}. Color Palette: ${colors}. Target Emotion: ${emotion}.${textOverlayStr} Optimized for mobile feed readability, clear visual hierarchy, uncluttered composition, high contrast, vivid saturation, photorealistic 8k quality, professional YouTube thumbnail aesthetics, no watermarks, --ar 16:9.${weaknessesStr}`;
-  };
-
-  const promptText = generateDetailedPrompt(data);
+  const promptText = buildThumbnailPrompt(data);
 
   const perceptionData = data.perceptionAnalysis || {
     primitiveBrainScore: Math.round(
@@ -122,83 +195,16 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
       'The thumbnail stimulates core ancestral attention mechanisms through contrast and focal subject placement, with opportunities to sharpen gaze tracking and informational void tension.',
   };
 
-  const getGradeColor = (grade: string) => {
-    if (grade.startsWith('A')) return 'from-emerald-500 to-teal-400 text-emerald-400 border-emerald-500/30';
-    if (grade.startsWith('B')) return 'from-amber-500 to-yellow-400 text-amber-400 border-amber-500/30';
-    return 'from-rose-500 to-red-400 text-rose-400 border-rose-500/30';
-  };
-
   return (
     <div className="max-w-5xl mx-auto py-6 px-4 space-y-8 text-slate-100">
-      {/* Overview Banner */}
-      <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
-          {/* Main Thumbnail Preview if available */}
-          {data.uploadedImage && (
-            <div className="w-full md:w-72 aspect-video rounded-xl overflow-hidden border border-slate-700 bg-black shadow-lg shrink-0 relative group">
-              <img src={data.uploadedImage} alt="Analyzed thumbnail" className="w-full h-full object-cover" />
-              <div className="absolute top-2 left-2 bg-slate-900/80 text-xs px-2 py-0.5 rounded text-slate-300 font-mono">
-                {t.analyzedThumbnail}
-              </div>
-            </div>
-          )}
-
-          {/* Title & CTR Score Display */}
-          <div className="flex-1 space-y-3">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-rose-400 font-semibold">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{t.reportBadge}</span>
-            </div>
-
-            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-              "{data.videoTitle || 'YouTube Video'}"
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-300 line-clamp-2">
-              {data.videoTopic}
-            </p>
-
-            <div className="flex items-center space-x-3 pt-2">
-              <button
-                onClick={onOpenSimulator}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-semibold text-slate-200 flex items-center space-x-2 transition-colors cursor-pointer"
-              >
-                <Eye className="w-4 h-4 text-amber-400" />
-                <span>{t.btnSimulator}</span>
-              </button>
-
-              <button
-                onClick={onGenerateNewConcept}
-                className="px-4 py-2 bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 rounded-lg text-xs font-semibold text-rose-300 flex items-center space-x-2 transition-colors cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4 text-rose-400" />
-                <span>{t.btnAlternative}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Big Score Badge */}
-          <div className="flex flex-col items-center justify-center p-6 bg-slate-950/80 rounded-2xl border border-slate-800 min-w-[190px]">
-            <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-1">{t.ctrPotential}</span>
-            <div className="flex items-baseline space-x-1">
-              <span className="text-4xl font-extrabold text-white">{data.overallCtrScore}</span>
-              <span className="text-sm text-slate-400">/100</span>
-            </div>
-            <div className={`mt-2 px-3 py-0.5 text-xs font-extrabold rounded-full border bg-slate-900 ${getGradeColor(data.ctrGrade)}`}>
-              {t.gradeLabel}: {data.ctrGrade}
-            </div>
-            {data.isCapped && (
-              <span className="mt-1.5 px-2 py-0.5 text-[9px] font-bold rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-center">
-                Hard Cap: {data.appliedCap}/100
-              </span>
-            )}
-            <span className="mt-1.5 text-[10px] text-slate-400 font-mono text-center">
-              Heuristic Assessment
-            </span>
-          </div>
-        </div>
-      </div>
+      {/* Overview Banner (Conditional) */}
+      {showOverviewBanner && (
+        <AnalysisOverviewBanner
+          data={data}
+          onOpenSimulator={onOpenSimulator}
+          onGenerateNewConcept={onGenerateNewConcept}
+        />
+      )}
 
       {/* Direct Contradictions & Conflict Detections Card (If direct contradictions detected) */}
       {data.contradictions && data.contradictions.length > 0 && (
@@ -1051,11 +1057,11 @@ export const AnalysisReportView: React.FC<AnalysisReportViewProps> = ({
 
         <div className="flex flex-wrap gap-2 text-[10px] font-mono text-slate-400 relative z-10">
           <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800 text-rose-300 font-bold">--ar 16:9</span>
-          <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">High Visual Contrast</span>
+          <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">Single Dominant Focal Point</span>
           <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">Mobile Feed Optimized</span>
-          <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">Photorealistic 8k</span>
-          <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">High Contrast</span>
-          <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">Clear Focal Point</span>
+          <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">Identity Preserved</span>
+          <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">High Silhouette Separation</span>
+          <span className="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">Curiosity Gap</span>
         </div>
       </div>
     </div>

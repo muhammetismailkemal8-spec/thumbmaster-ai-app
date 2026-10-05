@@ -428,12 +428,12 @@ export const ConceptGuideView: React.FC<ConceptGuideViewProps> = ({
 
         {/* Tag pills */}
         <div className="flex flex-wrap gap-2 text-[10px] font-mono text-slate-400">
-          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">--ar 16:9</span>
-          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">High Visual Contrast</span>
+          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800 text-rose-300 font-bold">--ar 16:9</span>
+          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">Mobile Feed Optimized</span>
+          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">Single Dominant Focal Point</span>
+          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">High Silhouette Separation</span>
           <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">No Watermark</span>
-          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">No Text</span>
-          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">Cinematic Lighting</span>
-          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">8k Ultra Realistic</span>
+          <span className="bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">Curiosity Gap</span>
         </div>
       </div>
 

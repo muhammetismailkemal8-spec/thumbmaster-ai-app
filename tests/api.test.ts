@@ -436,5 +436,413 @@ test('visual presentation layer data contract: emotionalTone object is safely fo
   assert.equal(getEmotionalToneLabel('Intense'), 'Intense');
 });
 
+test('intelligent thumbnail prompt generation: cleans hollow AI buzzwords and enforces 16:9 aspect ratio', async () => {
+  const { buildThumbnailPrompt, sanitizePromptBuzzwords } = await import('../src/utils/thumbnailPrompt.js');
+
+  const dirtyPrompt = 'High-quality YouTube thumbnail of a man, centered... 8K, cinematic lighting, vibrant colors, masterpiece, ultra-detailed';
+  const cleaned = sanitizePromptBuzzwords(dirtyPrompt);
+  assert.ok(!cleaned.toLowerCase().includes('8k'));
+  assert.ok(!cleaned.toLowerCase().includes('masterpiece'));
+  assert.ok(!cleaned.toLowerCase().includes('ultra-detailed'));
+  assert.ok(cleaned.includes('high-contrast directional lighting with rim light separation'));
+
+  const generated = buildThumbnailPrompt({
+    videoTitle: '100 Days in Minecraft Hardcore',
+    videoTopic: 'Surviving 100 days against mobs',
+  });
+  assert.ok(generated.includes('--ar 16:9'));
+  assert.ok(!generated.toLowerCase().includes('8k'));
+  assert.ok(!generated.toLowerCase().includes('masterpiece'));
+  assert.ok(generated.includes('Mobile Feed Readability'));
+  assert.ok(generated.includes('Negative Constraints'));
+});
+
+test('intelligent thumbnail prompt generation: survival acceptance test scenario', async () => {
+  const { buildThumbnailPrompt, inferContentCategory } = await import('../src/utils/thumbnailPrompt.js');
+
+  const title = 'I Survived The Most Extreme Places On Earth';
+  const category = inferContentCategory(title, 'Surviving deadly biomes across the globe');
+  assert.equal(category, 'survival');
+
+  const survivalAnalysis = {
+    videoTitle: title,
+    videoTopic: 'Surviving the deadliest deserts, arctic snows, and deep jungles',
+    structuredExtraction: {
+      mainTopic: 'Extreme survival across biomes',
+      visibleObjects: ['creator face and body', 'desert sand and snow', 'scorpion', 'yellow snake'],
+      ocrText: [],
+      numbersAndQuantities: { titleNumbers: [], thumbnailNumbers: [], hasConflict: false },
+      namedPeople: {
+        titlePeople: [],
+        thumbnailPeople: ['Creator'],
+        identificationConfidence: 'high' as const,
+        verificationStatus: 'verified' as const,
+      },
+      brands: { titleBrands: [], thumbnailBrands: [], hasConflict: false },
+      productModels: { titleModels: [], thumbnailModels: [], hasConflict: false },
+      locations: ['Desert', 'Arctic', 'Jungle'],
+      emotionalTone: { titleTone: 'High Stakes / Survival', thumbnailTone: 'Exhausted', isOpposite: false },
+      importantAdjectives: { titleAdjectives: ['Extreme'], thumbnailPolarity: 'consistent' as const },
+      detectedLanguage: { titleLanguage: 'en', hasMismatch: false },
+      thumbnailTextAmount: 'none' as const,
+      visualQuality: 'high' as const,
+      confidenceLevel: 'high' as const,
+    },
+    abTestDetails: {
+      alternativeTitle: 'How I Barely Survived Earth’s Deadliest Biomes',
+      suggestedHypothesis: 'Tight top-down perspective showing immediate biome collision',
+      thumbnailConcept: {
+        mainObject: 'Exhausted creator lying at the intersection of snow, sand, and dense jungle',
+        background: 'Collision of extreme biomes directly surrounding the subject',
+        lighting: 'Harsh directional environmental lighting with rim highlights',
+        cameraAngle: 'Tight top-down overhead shot focusing on physical strain',
+        colorPalette: 'Frigid white, scorched amber, and toxic jungle green',
+        targetEmotion: 'Exhaustion, disbelief, and sheer survival grit',
+        focalPoint: 'Creator face and immediate hazard',
+        textOverlay: '',
+      },
+      whyItsStronger: {
+        attentionReason: 'Puts viewer directly in the life-or-death moment',
+        psychologicalPrinciples: 'Curiosity gap and visceral survival empathy',
+        firstTwoSecondsImpact: 'Immediate recognition of extreme danger',
+      },
+      expectedImpact: {
+        abTestPriority: 'High',
+        variableTested: 'Framing and Environmental Interaction',
+        confidenceLevel: 'High',
+        primaryMetricToWatch: 'Feed Glance CTR',
+        tradeoffOrRisk: 'Must balance multi-biome details to avoid visual clutter',
+        ctrPotentialStars: 5,
+        curiosityStars: 5,
+        visualAttentionStars: 5,
+        emotionalImpactStars: 5,
+      },
+    },
+  };
+
+  const prompt = buildThumbnailPrompt(survivalAnalysis);
+
+  // 1. Connection to survival promise
+  assert.ok(prompt.includes('survival stakes'));
+  // 2. Identity preservation instruction
+  assert.ok(prompt.includes('Preserve the exact recognizable identity'));
+  // 3. Subject scale in frame
+  assert.ok(prompt.includes('40-50%'));
+  // 4. Tight / top-down composition (not distant movie poster)
+  assert.ok(prompt.toLowerCase().includes('top-down') || prompt.toLowerCase().includes('close-up'));
+  // 5. Mobile feed readability
+  assert.ok(prompt.includes('Mobile Feed Readability'));
+  // 6. Text instruction explicitly states no text
+  assert.ok(prompt.includes('No text, clean visual storytelling only'));
+  // 7. Negative constraints prevent movie-poster layouts & plastic AI skin
+  assert.ok(prompt.includes('Avoid movie poster layouts'));
+  assert.ok(prompt.includes('generic glossy AI skin'));
+  // 8. 16:9 YouTube thumbnail aspect ratio
+  assert.ok(prompt.includes('--ar 16:9'));
+});
+
+test('stage 4 similarity rejection engine: rejects candidates matching 3 or more major visual dimensions', async () => {
+  const { evaluateCandidateSimilarity } = await import('../api/thumbnail-prompt-pipeline.js');
+
+  const originalSignature = {
+    identityReferencePresent: true,
+    recognizableSubjects: ['Creator'],
+    cameraAngle: 'top-down overhead',
+    shotType: 'full-body top-down wide',
+    mainSubjectPose: 'lying flat on back',
+    mainSubjectPosition: 'dead center',
+    mainSubjectScale: 'medium full-body',
+    backgroundStructure: 'three-way split screen (top/left/right)',
+    environmentPlacement: ['snow above head', 'desert on left', 'jungle on right'],
+    propsAndPositions: ['scorpion on left sand', 'yellow snake on right jungle'],
+    textPlacement: 'none',
+    colorStructure: 'high contrast',
+    visualNarrative: 'helpless creator lying on back between three static biomes with dangerous animals',
+    strengths: ['Intriguing premise'],
+    weaknesses: ['Too cluttered, unreadable on mobile'],
+  };
+
+  // Candidate 1: Copycat candidate (matches camera angle, pose, position, background structure)
+  const copycatCandidate = {
+    conceptSummary: 'Creator in the center of biomes',
+    storyMoment: 'Lying stranded on back in the wilderness',
+    curiosityMechanism: 'How will he escape?',
+    cameraAngle: 'top-down overhead flat lay',
+    shotType: 'full-body wide',
+    subjectPose: 'lying flat on back in the middle',
+    subjectPosition: 'dead center',
+    subjectScale: 'medium',
+    backgroundStructure: 'three-way split background with biomes',
+    keyElements: ['scorpion', 'yellow snake', 'snow and desert'],
+    visualHierarchy: '1. Creator, 2. Animals',
+    whyItFitsTheVideo: 'Shows all biomes',
+  };
+
+  const copycatResult = evaluateCandidateSimilarity(copycatCandidate, originalSignature, 0);
+  assert.equal(copycatResult.isRejected, true);
+  assert.ok(copycatResult.matchedDimensionsCount >= 3);
+  assert.ok(copycatResult.matchedDimensions.includes('Camera Angle'));
+  assert.ok(copycatResult.matchedDimensions.includes('Main Subject Pose'));
+  assert.ok(copycatResult.matchedDimensions.includes('Main Subject Position'));
+
+  // Candidate 2: Fresh, genuinely independent concept (dynamic low angle, crouching, left third)
+  const freshCandidate = {
+    conceptSummary: 'Desperate Struggle against a Blinding Glacier Blizzard',
+    storyMoment: 'Clinging to a frozen ice shelf while battling sub-zero winds with an emergency flare',
+    curiosityMechanism: 'How can anyone survive in these brutal sub-zero conditions?',
+    cameraAngle: 'Dynamic low angle',
+    shotType: 'Medium close-up',
+    subjectPose: 'Crouching low against whipping winds, shielding eyes with ice-crusted glove',
+    subjectPosition: 'Left third leading into the storm',
+    subjectScale: '45-50% frame presence',
+    backgroundStructure: 'Deep glacial crevasses fading into blinding white storm haze',
+    keyElements: ['Ice-crusted face with survival grit', 'Vivid orange emergency flare smoke', 'Looming jagged ice ridge'],
+    visualHierarchy: '1. Exhausted face and eyes, 2. Glowing flare, 3. Looming ice chasm',
+    whyItFitsTheVideo: 'Puts viewer right in the life-or-death freeze of the most extreme environment',
+  };
+
+  const freshResult = evaluateCandidateSimilarity(freshCandidate, originalSignature, 1);
+  assert.equal(freshResult.isRejected, false);
+  assert.ok(freshResult.matchedDimensionsCount < 3);
+});
+
+test('stage 5 & 6 concept selection and final prompt: survival test case produces genuinely new composition', async () => {
+  const { selectStrongestConcept, evaluateCandidateSimilarity } = await import('../api/thumbnail-prompt-pipeline.js');
+
+  const videoUnderstanding = {
+    contentType: 'survival',
+    corePremise: 'Surviving extreme deadly places across the globe',
+    viewerPromise: 'Witness an extraordinary human endurance test',
+    mainSubject: 'The creator',
+    centralAction: 'Battling brutal weather extremes',
+    stakes: 'Life or death physical exhaustion',
+    emotionalArc: 'Despair to relentless perseverance',
+    curiosityGap: 'How did he physically survive these lethal environments?',
+    strongestVisualMoments: ['Battling blizzard on glacier ridge', 'Crossing scorching salt flat', 'Canyon shelter standoff'],
+    importantEntities: ['Creator'],
+    factsThatMustRemainAccurate: ['Creator identity', 'Hostile environments'],
+    informationToWithhold: ['Whether he was rescued or won'],
+    uncertainties: [],
+    evidenceConfidence: 'high' as const,
+  };
+
+  const originalSignature = {
+    identityReferencePresent: true,
+    recognizableSubjects: ['Creator'],
+    cameraAngle: 'top-down overhead',
+    shotType: 'full-body top-down wide',
+    mainSubjectPose: 'lying flat on back',
+    mainSubjectPosition: 'dead center',
+    mainSubjectScale: 'medium',
+    backgroundStructure: 'three-way split screen (top/left/right)',
+    environmentPlacement: ['snow above head', 'desert on left', 'jungle on right'],
+    propsAndPositions: ['scorpion on left', 'yellow snake on right'],
+    textPlacement: 'none',
+    colorStructure: 'high contrast',
+    visualNarrative: 'creator lying on back between three biomes',
+    strengths: [],
+    weaknesses: ['Cluttered, unreadable on mobile'],
+  };
+
+  const candidates = [
+    // Candidate 1 (Copycat - should be rejected)
+    {
+      conceptSummary: 'Lying in the center between biomes',
+      storyMoment: 'Lying exhausted on back with animals nearby',
+      curiosityMechanism: 'Survival danger',
+      cameraAngle: 'top-down overhead',
+      shotType: 'full-body wide',
+      subjectPose: 'lying flat on back',
+      subjectPosition: 'dead center',
+      subjectScale: 'medium',
+      backgroundStructure: 'three-way split',
+      keyElements: ['scorpion on left', 'yellow snake on right'],
+      visualHierarchy: '1. Center creator, 2. Animals',
+      whyItFitsTheVideo: 'Recreates the title',
+    },
+    // Candidate 2 (Independent fresh concept - should be accepted and selected)
+    {
+      conceptSummary: 'Desperate Struggle against a Blinding Glacier Blizzard',
+      storyMoment: 'Clinging to a frozen ice shelf while battling sub-zero winds with an emergency flare',
+      curiosityMechanism: 'How can anyone survive in these brutal sub-zero conditions?',
+      cameraAngle: 'Dynamic low angle',
+      shotType: 'Medium close-up',
+      subjectPose: 'Crouching low against whipping winds, shielding eyes with ice-crusted glove',
+      subjectPosition: 'Left third leading into the storm',
+      subjectScale: '45-50% frame presence',
+      backgroundStructure: 'Deep glacial crevasses fading into blinding white storm haze',
+      keyElements: ['Ice-crusted face with survival grit', 'Vivid orange emergency flare smoke', 'Looming jagged ice ridge'],
+      visualHierarchy: '1. Exhausted face and eyes, 2. Glowing flare, 3. Looming ice chasm',
+      whyItFitsTheVideo: 'Puts viewer right in the life-or-death freeze of the most extreme environment',
+    },
+  ];
+
+  const simResults = candidates.map((c, idx) => evaluateCandidateSimilarity(c, originalSignature, idx));
+  assert.equal(simResults[0].isRejected, true); // Copycat rejected!
+  assert.equal(simResults[1].isRejected, false); // Independent accepted!
+
+  const selection = selectStrongestConcept(candidates, simResults, videoUnderstanding);
+  assert.equal(selection.selectedIndex, 1);
+  assert.equal(selection.winningConcept.cameraAngle, 'Dynamic low angle');
+  assert.equal(selection.winningConcept.subjectPosition, 'Left third leading into the storm');
+
+  // Verify that the winning concept does NOT have the original anchor elements:
+  assert.ok(!selection.winningConcept.cameraAngle.toLowerCase().includes('top-down'));
+  assert.ok(!selection.winningConcept.subjectPose.toLowerCase().includes('lying flat on back'));
+  assert.ok(!selection.winningConcept.subjectPosition.toLowerCase().includes('dead center'));
+});
+
+test('concept diversity across multiple video categories: does not default to centered person', async () => {
+  const { inferContentCategory, buildThumbnailPrompt } = await import('../src/utils/thumbnailPrompt.js');
+
+  // 1. Comparison video
+  const compTitle = '$10 Microphone vs $1,000 Microphone: Shocking Difference!';
+  assert.equal(inferContentCategory(compTitle, 'Audio comparison test'), 'comparison');
+  const compPrompt = buildThumbnailPrompt({ videoTitle: compTitle });
+  assert.ok(compPrompt.includes('comparison'));
+  assert.ok(compPrompt.includes('split-contrast') || compPrompt.includes('side-by-side'));
+
+  // 2. Tutorial video without visible person
+  const tutTitle = 'How to Build an Ultra-Quiet Custom Mechanical Keyboard';
+  assert.equal(inferContentCategory(tutTitle, 'Step by step keyboard assembly'), 'tutorial');
+
+  // 3. Transformation video
+  const transTitle = '100 Days Weight Loss and Muscle Transformation';
+  assert.equal(inferContentCategory(transTitle, 'Body makeover journey'), 'transformation');
+  const transPrompt = buildThumbnailPrompt({ videoTitle: transTitle });
+  assert.ok(transPrompt.includes('transformation') || transPrompt.includes('before-and-after'));
+
+  // 4. Mystery documentary
+  const mysteryTitle = 'The Lost City of Z: The Disturbing Truth Revealed';
+  assert.equal(inferContentCategory(mysteryTitle, 'Historical expedition disappearance'), 'mystery');
+  const mysteryPrompt = buildThumbnailPrompt({ videoTitle: mysteryTitle });
+  assert.ok(mysteryPrompt.includes('curiosity') || mysteryPrompt.includes('mystery'));
+});
+
+test('faithful prompt elevation: preserves original thumbnail biomes and creatures without inventing unrelated stories', async () => {
+  const { fallbackElevateOriginalPrompt } = await import('../api/thumbnail-prompt-pipeline.js');
+
+  const videoUnderstanding = {
+    contentType: 'survival',
+    corePremise: 'Surviving 7 days in the world’s most hostile climates',
+    viewerPromise: 'Witness extreme human endurance across contrasting biomes',
+    mainSubject: 'Featured creator',
+    centralAction: 'Enduring multi-biome survival extremes',
+    stakes: 'Severe physical exhaustion and survival peril',
+    emotionalArc: 'Intense shock and survival grit',
+    curiosityGap: 'How can anyone endure three contrasting deadly climates at once?',
+    strongestVisualMoments: ['Stranded at the crossroads of snow, desert, and jungle'],
+    importantEntities: ['Creator'],
+    factsThatMustRemainAccurate: ['Creator identity', 'Contrasting climates'],
+    informationToWithhold: ['Rescue outcome'],
+    uncertainties: [],
+    evidenceConfidence: 'high' as const,
+  };
+
+  const originalSignature = {
+    identityReferencePresent: true,
+    recognizableSubjects: ['MrBeast / Creator'],
+    clothingAndDetails: 'Tattered red outdoor jacket with frost on hair and mud on face',
+    cameraAngle: 'High-angle direct overhead view',
+    shotType: 'medium close-up',
+    mainSubjectPose: 'lying on back with mouth parted in exhaustion',
+    mainSubjectPosition: 'centered',
+    mainSubjectScale: '45-50% dominant',
+    backgroundStructure: 'three-way environmental split',
+    environmentPlacement: ['snow and ice at top', 'desert sand dunes on left', 'tropical jungle foliage on right'],
+    propsAndPositions: ['black emperor scorpion on desert sand', 'yellow python snake on jungle leaves'],
+    sceneConcept: 'Creator lying exhausted between snow, desert, and jungle with dangerous venomous creatures',
+    textPlacement: 'none',
+    colorStructure: 'triad: red jacket, white snow, golden sand, green jungle',
+    visualNarrative: 'Creator stranded at the convergence of three extreme biomes with scorpion and yellow snake',
+    strengths: ['High-contrast biome convergence', 'Immediate wildlife danger', 'Strong facial distress'],
+    weaknesses: ['Collage boundaries could be more organic', 'Needs sharper directional rim light'],
+  };
+
+  const elevatedPrompt = fallbackElevateOriginalPrompt(videoUnderstanding, originalSignature, 'I Survived 7 Days In The World’s Deadliest Climates');
+
+  // Verify that it stays faithful to the original thumbnail:
+  assert.ok(elevatedPrompt.includes('snow') || elevatedPrompt.includes('biomes'));
+  assert.ok(elevatedPrompt.includes('desert') || elevatedPrompt.includes('sand'));
+  assert.ok(elevatedPrompt.includes('scorpion'));
+  assert.ok(elevatedPrompt.includes('snake') || elevatedPrompt.includes('yellow'));
+  assert.ok(elevatedPrompt.includes('red'));
+  assert.ok(elevatedPrompt.includes('--ar 16:9'));
+
+  // Verify that it does NOT invent unrelated stories (no volcano, no gas mask, no heart monitor):
+  assert.ok(!elevatedPrompt.toLowerCase().includes('volcano'));
+  assert.ok(!elevatedPrompt.toLowerCase().includes('gas mask'));
+  assert.ok(!elevatedPrompt.toLowerCase().includes('monitor'));
+});
+
+test('analysis-driven prompt generation: directly executes diagnostic improvements and rejects movie poster layout', async () => {
+  const { fallbackElevateOriginalPrompt } = await import('../api/thumbnail-prompt-pipeline.js');
+
+  const videoUnderstanding = {
+    contentType: 'survival',
+    corePremise: '7 Days in extreme biomes',
+    viewerPromise: 'Survival endurance',
+    mainSubject: 'Creator',
+    centralAction: 'Surviving',
+    stakes: 'Severe exhaustion',
+    emotionalArc: 'Desperation',
+    curiosityGap: 'Can he survive?',
+    strongestVisualMoments: ['Convergence of biomes'],
+    importantEntities: ['Creator'],
+    factsThatMustRemainAccurate: ['Creator'],
+    informationToWithhold: ['Outcome'],
+    uncertainties: [],
+    evidenceConfidence: 'high' as const,
+  };
+
+  const originalSignature = {
+    identityReferencePresent: true,
+    recognizableSubjects: ['Creator'],
+    cameraAngle: 'High-angle overhead',
+    shotType: 'medium shot',
+    mainSubjectPose: 'lying on back',
+    mainSubjectPosition: 'center',
+    mainSubjectScale: 'medium',
+    backgroundStructure: 'three-way split',
+    environmentPlacement: ['snow at top', 'desert on left', 'jungle on right'],
+    propsAndPositions: ['scorpion on left', 'yellow snake on right'],
+    textPlacement: 'none',
+    colorStructure: 'triad',
+    visualNarrative: 'Creator stranded between snow, desert, jungle',
+    strengths: ['Contrasting biomes'],
+    weaknesses: ['Subject lacks high luminance contrast', 'Too much background clutter competing for attention'],
+  };
+
+  const diagnosticContext = {
+    weaknesses: [
+      'Subject blends into background with insufficient luminance contrast',
+      'Background clutter competes with creator face at 150px mobile scale',
+    ],
+    improvements: [
+      {
+        observation: 'Subject luminance contrast',
+        suggestedAction: 'Increase subject scale to 50% and inject intense punchy rim lighting',
+        reason: 'Prevents camouflage and guarantees 1-second mobile recognition',
+        tradeoffOrUncertainty: 'Slightly reduces background visibility',
+      },
+    ],
+  };
+
+  const prompt = fallbackElevateOriginalPrompt(
+    videoUnderstanding,
+    originalSignature,
+    'I Survived 7 Days In The Deadliest Climates',
+    diagnosticContext
+  );
+
+  // Directly implements the diagnostic improvement:
+  assert.ok(prompt.includes('Increase subject scale') || prompt.includes('rim lighting') || prompt.includes('45-50%'));
+  assert.ok(prompt.includes('Avoid movie poster layouts'));
+  assert.ok(prompt.includes('--ar 16:9'));
+  assert.ok(prompt.includes('mobile'));
+});
+
+
+
 
 

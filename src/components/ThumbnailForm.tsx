@@ -87,6 +87,7 @@ export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoadin
 
   const [videoTitle, setVideoTitle] = useState('');
   const [videoTopic, setVideoTopic] = useState('');
+  const [videoContext, setVideoContext] = useState('');
   const [category, setCategory] = useState(t.catTech);
   const [targetAudience, setTargetAudience] = useState('General YouTube Audience');
   const [hasOwnThumbnail, setHasOwnThumbnail] = useState<boolean>(true);
@@ -131,6 +132,7 @@ export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoadin
   const applyPreset = (preset: (typeof DEMO_PRESETS)[0]) => {
     setVideoTitle(preset.title);
     setVideoTopic(preset.topic);
+    setVideoContext('');
     setCategory(preset.category);
     setTargetAudience(preset.audience);
     setHasOwnThumbnail(preset.hasImage);
@@ -152,6 +154,7 @@ export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoadin
     onSubmit({
       videoTitle,
       videoTopic,
+      videoContext: videoContext.trim() || undefined,
       category,
       targetAudience,
       hasOwnThumbnail,
@@ -225,6 +228,23 @@ export const ThumbnailForm: React.FC<ThumbnailFormProps> = ({ onSubmit, isLoadin
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition-colors resize-none"
               required
             />
+          </div>
+
+          {/* Video Context (Optional) */}
+          <div className="space-y-2 md:col-span-2">
+            <label className="block text-xs font-semibold text-slate-200 uppercase tracking-wider">
+              Video context (optional)
+            </label>
+            <textarea
+              value={videoContext}
+              onChange={(e) => setVideoContext(e.target.value)}
+              rows={2}
+              placeholder="Briefly describe what happens in the video, its most important moment, or paste part of the transcript."
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition-colors resize-none"
+            />
+            <p className="text-[11px] text-slate-400">
+              Briefly describe what happens in the video, its most important moment, or paste part of the transcript.
+            </p>
           </div>
 
           {/* Category */}

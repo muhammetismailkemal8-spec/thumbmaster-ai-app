@@ -1,5 +1,6 @@
-import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { executeMultiStageThumbnailPromptPipeline } from './thumbnail-prompt-pipeline.js';
 
 /**
  * ============================================================================
@@ -818,16 +819,17 @@ export async function generateContentWithFallback(
   options: GenAIFallbackOptions,
   operationName: string
 ): Promise<string> {
-  const candidateModels: Array<{ model: string; thinkingLevel?: ThinkingLevel }> = [
-    { model: 'gemini-3.8-flash', thinkingLevel: ThinkingLevel.LOW },
-    { model: 'gemini-3.1-flash-lite', thinkingLevel: ThinkingLevel.MINIMAL },
-    { model: 'gemini-flash-latest', thinkingLevel: undefined },
+  const candidateModels: Array<{ model: string; thinkingBudget?: number }> = [
+    { model: 'gemini-3.7-flash', thinkingBudget: 0 },
+    { model: 'gemini-2.5-flash', thinkingBudget: undefined },
+    { model: 'gemini-2.5-flash-lite', thinkingBudget: undefined },
+    { model: 'gemini-3.1-flash-lite', thinkingBudget: undefined },
   ];
 
   let lastError: any = null;
 
   for (let i = 0; i < candidateModels.length; i++) {
-    const { model, thinkingLevel } = candidateModels[i];
+    const { model, thinkingBudget } = candidateModels[i];
     try {
       const config: any = {};
       if (options.systemInstruction) {
@@ -839,8 +841,8 @@ export async function generateContentWithFallback(
       if (options.responseSchema) {
         config.responseSchema = options.responseSchema;
       }
-      if (thinkingLevel !== undefined) {
-        config.thinkingConfig = { thinkingLevel };
+      if (thinkingBudget !== undefined) {
+        config.thinkingConfig = { thinkingBudget };
       }
 
       const response = await ai.models.generateContent({
@@ -931,6 +933,7 @@ export async function handleAnalyzeThumbnailRequest(req: any, res: any) {
 
     const rawTitle = sanitizeString(body.videoTitle, 300);
     const rawTopic = sanitizeString(body.videoTopic, 2000);
+    const rawContext = sanitizeString(body.videoContext, 4000);
     const rawAudience = sanitizeString(body.targetAudience, 200);
     const rawCategory = sanitizeString(body.category, 200);
     const rawImage = body.imageBase64;
@@ -942,10 +945,11 @@ export async function handleAnalyzeThumbnailRequest(req: any, res: any) {
     // Prompt injection safety checks
     const titleCheck = sanitizeForPrompt(rawTitle);
     const topicCheck = sanitizeForPrompt(rawTopic);
+    const contextCheck = sanitizeForPrompt(rawContext);
     const audienceCheck = sanitizeForPrompt(rawAudience);
     const categoryCheck = sanitizeForPrompt(rawCategory);
 
-    if (!titleCheck.isValid || !topicCheck.isValid || !audienceCheck.isValid || !categoryCheck.isValid) {
+    if (!titleCheck.isValid || !topicCheck.isValid || !audienceCheck.isValid || !categoryCheck.isValid || !contextCheck.isValid) {
       return res.status(400).json({
         success: false,
         error: 'Invalid input detected: Disallowed instructions or keywords found in your request.',
@@ -954,6 +958,7 @@ export async function handleAnalyzeThumbnailRequest(req: any, res: any) {
 
     const videoTitle = titleCheck.sanitized;
     const videoTopic = topicCheck.sanitized;
+    const videoContext = contextCheck.sanitized;
     const targetAudience = audienceCheck.sanitized;
     const category = categoryCheck.sanitized;
 
@@ -1062,6 +1067,84 @@ Score strictly using these 5 heuristic categories:
 - Each improvement must state: Observation, Suggested Action, Reason, and Tradeoff/Uncertainty.
 - Keep the main summary concise (1-2 clear paragraphs).
 
+8. ANALYSIS-DRIVEN YOUTUBE THUMBNAIL IMAGE PROMPT ENGINE ('aiImagePrompt'):
+Generate a polished, production-grade text-to-image prompt ('aiImagePrompt') for a high-CTR YouTube thumbnail (16:9 aspect ratio). It must be directly usable in external AI image generators without further editing.
+
+CRITICAL DIRECTIVE 1: THIS IS A YOUTUBE THUMBNAIL, NEVER A MOVIE POSTER!
+- Do NOT turn this into a movie poster, film still, or distant landscape!
+- AVOID movie poster tropes: NO distant landscape vistas where the subject is tiny, NO dark moody shadows that obscure details on mobile screens, NO subtle artsy atmospheric fog, NO movie poster typography or cinematic billing credits.
+- ENFORCE YouTube thumbnail mechanics:
+  1. Instant 1-second comprehension on 150px mobile phone screens.
+  2. In-your-face focal dominance: primary subject/creator commands 45% to 55% of the frame with high emotional intensity.
+  3. Exaggerated, authentic facial emotion (shock, exhaustion, disbelief, intense focus).
+  4. Punchy directional lighting with high-contrast rim lighting that pops the subject off the background.
+  5. Maximum 2-3 visual elements total: 1 dominant focal point + 1-2 clear storytelling threats/props.
+
+CRITICAL DIRECTIVE 2: DIRECTLY SOLVE THE WEAKNESSES AND APPLY THE IMPROVEMENTS IDENTIFIED IN YOUR ANALYSIS!
+- The prompt MUST NOT be an isolated description or work as a detached separate team ("kapağın analizine göre çalışsın").
+- It must be the DIRECT VISUAL SOLUTION that executes the fixes for the weaknesses and criticisms you identify in your analysis:
+  - If analysis criticized weak contrast: inject powerful rim lighting and bold figure-ground luminance separation.
+  - If analysis criticized clutter or competing elements: ruthlessly simplify the scene to the primary subject and max 1-2 key threats.
+  - If analysis criticized weak focal scale or small face: zoom in to a tight medium close-up with the subject commanding 45-55% of the frame.
+  - If analysis criticized artificial collage lines: seamlessly blend the contrasting environments with realistic, organic terrain transitions.
+  - If analysis criticized lack of emotional intensity: amplify the facial distress, mud/frost details, and wide-eyed survival shock.
+- Preserve the creator's recognizable identity, clothing cues, the core scenario, and signature environments/creatures (e.g. snow, desert, jungle, scorpion, snake).
+- DO NOT invent an unrelated new story or different hazards (no random volcanoes, gas masks, space suits, or hospital monitors).
+
+MANDATORY INTELLIGENT REASONING PIPELINE (execute internally before writing the prompt):
+1. Understand the Video Promise:
+   - Identify what the viewer is promised, the core subject, action, stakes, source of curiosity, and emotional tone.
+   - Determine what must remain factually consistent and what should be shown vs deliberately left unanswered (curiosity gap).
+2. Classify the Content Pattern:
+   - Infer the appropriate content pattern: extreme challenge, survival, experiment, transformation/before-and-after, comparison, tutorial, product review, documentary, mystery, reaction, gaming, story, news/commentary, list/ranking.
+   - Choose a composition strategy tailored to that specific category rather than forcing a generic template.
+3. Analyze the Reference Thumbnail Intelligently:
+   - Identify the main person or object, recognizable identity cues, facial expression, composition, camera angle, scale, and background complexity.
+   - Preserve useful elements and deliberately correct weaknesses (e.g. bring distant subjects closer, eliminate clutter, strengthen contrast).
+4. Design One Strong Thumbnail Concept:
+   - One dominant focal point with clear frame presence (occupying 40-50% of the frame).
+   - One immediately understandable action, conflict, contrast, or situation.
+   - Approximately 2 to 4 major visual elements total to avoid clutter.
+   - Understandable in 1 second at mobile feed scale, with clear foreground/background separation and strong silhouette contrast.
+   - Creates a curiosity gap that complements the title without giving everything away.
+5. Make Composition Decisions Explicitly:
+   - Specify camera angle, shot distance (prefer close-up, medium close-up, top-down, or dynamic angle; avoid distant panoramic scenery unless scale is the story), crop, subject position (centered, left-weighted, right-weighted, symmetrical, split-screen, top-down, POV), subject scale in frame, gaze/movement direction, supporting object placement, lighting direction, and depth separation.
+   - Do NOT default to a centered person for every video; select the layout that best serves the specific category and concept.
+6. Preserve Identity and Factual Consistency:
+   - When the uploaded thumbnail has a creator or recognizable person, explicitly instruct: "Preserve the exact recognizable identity, facial structure, hairstyle, age range, skin tone, and key clothing cues of the person from the uploaded reference image". Never replace them with a generic AI face. If identity is uncertain, specify "the same person from the uploaded reference image".
+   - Keep numbers, brands, product models, comparisons, and locations consistent with the title and reference image. Do not invent unverified celebrities, products, or events.
+7. Handle Thumbnail Text Intelligently:
+   - Do not automatically add text. Use text only if it adds vital punch that visual elements alone cannot convey.
+   - If useful: maximum ONE short phrase (2 to 4 words), in the language of the video title, in exact quotation marks, specifying no other text or watermarks.
+   - If text is unnecessary, explicitly state "no text, clean visual only".
+8. Avoid Generic AI Aesthetics and Buzzwords:
+   - Do NOT depend on empty buzzwords like "8K", "masterpiece", "ultra-detailed", "cinematic", "epic", "hyper-realistic", "vibrant colors", or "professional photography".
+   - Prefer concrete instructions about composition, hierarchy, crop, emotion, scale, contrast, lighting, realism, and mobile readability.
+   - Explicitly avoid: generic AI-glossy skin, excessive sharpness everywhere, random dramatic particles, unnecessary lens flares, overcrowded scenes, malformed anatomy, duplicated objects, fake or unreadable text, movie-poster layouts, distant subjects, and decorative clutter.
+
+REQUIRED FINAL PROMPT STRUCTURE:
+Build 'aiImagePrompt' in this logical order into a single, cohesive, polished English prompt (ready to copy, no markdown headings):
+1. Thumbnail objective and connection to the video title
+2. Main visual concept and core curiosity gap
+3. Main subject and explicit identity-preservation instruction from reference image
+4. Expression, pose, and action
+5. Camera angle, shot, crop, placement, and subject scale
+6. Supporting objects and their positions
+7. Background/environment with clean separation
+8. Lighting, color separation, and visual hierarchy
+9. Mobile-size readability requirements
+10. Text instruction (exact required phrase in quotation marks, or "no text, clean visual only")
+11. Specific negative constraints (no movie-poster styling, no glossy AI skin, no random floating particles, no extra clutter, no unreadable text, no distorted anatomy)
+12. 16:9 YouTube thumbnail aspect ratio (--ar 16:9)
+
+INTERNAL QUALITY GATE:
+Before returning, verify internally:
+- Does it accurately represent the title and preserve important facts and identities?
+- Is there one unmistakable focal point readable at small mobile size?
+- Does it create curiosity instead of explaining everything?
+- Does the composition fit this specific video category?
+- Does it avoid generic movie posters and AI buzzword cliches?
+
 LANGUAGE: All output must be in clear, professional ENGLISH.`;
 
     let userPrompt = `Video Title: "${videoTitle.replace(/"/g, '\\"')}"
@@ -1085,9 +1168,10 @@ Category / Niche: "${category || 'General'}"`;
 4. Score the 5 categories (visual impact 20%, readability 15% - allow N/A for text-free, curiosity 20%, clarity 15%, title alignment 30%).
 5. Provide grounded viewer attention assessment (estimated visual emphasis order, glance impression, Gestalt separation).
 6. Provide up to 3 prioritized improvements with observations, actions, reasons, and tradeoffs.
-7. Generate an alternative concept framed as an untested hypothesis for A/B testing with tradeoffs.`;
+7. Generate an alternative concept framed as an untested hypothesis for A/B testing with tradeoffs.
+8. Generate a polished, directly usable 16:9 YouTube thumbnail image-generation prompt ('aiImagePrompt') using the intelligent thumbnail reasoning pipeline.`;
     } else {
-      userPrompt += `\n\nNo thumbnail image was uploaded. Based on the video title and topic, provide design guidelines, potential pitfalls of common concepts, an A/B test hypothesis, and an AI thumbnail prompt.`;
+      userPrompt += `\n\nNo thumbnail image was uploaded. Based on the video title and topic, provide design guidelines, potential pitfalls of common concepts, an A/B test hypothesis, and an intelligent AI thumbnail prompt ('aiImagePrompt') using the thumbnail reasoning pipeline.`;
     }
 
     parts.push({ text: userPrompt });
@@ -1369,7 +1453,7 @@ Category / Niche: "${category || 'General'}"`;
             },
             aiImagePrompt: {
               type: Type.STRING,
-              description: 'Detailed 16:9 prompt consistent with the video topic and proposed concept without inventing unverified scenes.',
+              description: 'Polished, directly usable 16:9 image-generation prompt following the 8-stage intelligent thumbnail reasoning pipeline (connection to video promise, category-specific composition, identity preservation, uncluttered mobile-readable hierarchy, curiosity gap, explicit text or no-text instruction, concrete negative constraints, and --ar 16:9). No generic buzzwords.',
             },
             perceptionAnalysis: {
               type: Type.OBJECT,
@@ -1760,6 +1844,40 @@ Category / Niche: "${category || 'General'}"`;
       }
     }
 
+    // Generate prompt directly driven by the diagnostic analysis results ("kapağın analizine göre")
+    let pipelinePrompt = '';
+    try {
+      pipelinePrompt = await executeMultiStageThumbnailPromptPipeline(ai, {
+        videoTitle,
+        videoTopic,
+        videoContext,
+        targetAudience,
+        category,
+        parsedImage,
+        diagnosticWeaknesses: parsedData.weaknesses,
+        diagnosticImprovements: parsedData.prioritizedImprovements,
+        abTestHypothesis: parsedData.abTestDetails?.hypothesisAnalysis,
+        diagnosticScores: {
+          visualImpact,
+          readability,
+          curiosity,
+          clarity,
+          titleThumbnailAlignment,
+        },
+      });
+    } catch (err: any) {
+      console.warn('[handleAnalyzeThumbnailRequest] Analysis-driven prompt pipeline warning:', err?.message);
+    }
+
+    if (pipelinePrompt && pipelinePrompt.trim().length > 30) {
+      parsedData.aiImagePrompt = pipelinePrompt.trim();
+    } else if (parsedData.aiImagePrompt && typeof parsedData.aiImagePrompt === 'string') {
+      parsedData.aiImagePrompt = sanitizeString(parsedData.aiImagePrompt, 3000);
+    }
+    if (videoContext) {
+      parsedData.videoContext = videoContext;
+    }
+
     const record = await rateLimitStore.increment(key, nextMidnight);
     const remaining = Math.max(0, allowedLimit - record.count);
 
@@ -1863,6 +1981,7 @@ export async function handleGenerateThumbnailConceptRequest(req: any, res: any) 
 
     const rawTitle = sanitizeString(body.videoTitle, 300);
     const rawTopic = sanitizeString(body.videoTopic, 2000);
+    const rawContext = sanitizeString(body.videoContext, 4000);
     const rawAudience = sanitizeString(body.targetAudience, 200);
     const rawCategory = sanitizeString(body.category, 200);
     const rawEmotion = sanitizeString(body.emotionGoal, 200);
@@ -1874,6 +1993,7 @@ export async function handleGenerateThumbnailConceptRequest(req: any, res: any) 
 
     const titleCheck = sanitizeForPrompt(rawTitle);
     const topicCheck = sanitizeForPrompt(rawTopic);
+    const contextCheck = sanitizeForPrompt(rawContext);
     const audienceCheck = sanitizeForPrompt(rawAudience);
     const categoryCheck = sanitizeForPrompt(rawCategory);
     const emotionCheck = sanitizeForPrompt(rawEmotion);
@@ -1882,6 +2002,7 @@ export async function handleGenerateThumbnailConceptRequest(req: any, res: any) 
     if (
       !titleCheck.isValid ||
       !topicCheck.isValid ||
+      !contextCheck.isValid ||
       !audienceCheck.isValid ||
       !categoryCheck.isValid ||
       !emotionCheck.isValid ||
@@ -1895,6 +2016,7 @@ export async function handleGenerateThumbnailConceptRequest(req: any, res: any) 
 
     const videoTitle = titleCheck.sanitized;
     const videoTopic = topicCheck.sanitized;
+    const videoContext = contextCheck.sanitized;
     const targetAudience = audienceCheck.sanitized;
     const category = categoryCheck.sanitized;
     const emotionGoal = emotionCheck.sanitized;
@@ -1906,15 +2028,29 @@ export async function handleGenerateThumbnailConceptRequest(req: any, res: any) 
 Your task is to analyze the video title and topic to create a directly actionable, professional thumbnail design (AI Thumbnail Blueprint).
 
 Rules:
-- Accurately understand the video topic.
-- Do not create clickbait; remain faithful to the true video content.
-- Utilize human psychology (Curiosity Gap, visual hierarchy, contrast, color psychology, focal point).
-- Ensure the thumbnail captures attention in the first 1 second and meets top YouTube standards.
-- Generate a highly detailed, cinematic 16:9 English prompt (imagePromptForAI) for text-to-image AI generators (high contrast, no text/watermark).
-- CRITICAL: You MUST provide all generated explanations, titles, blueprints, tutorials, and alternatives in ENGLISH.`;
+- Accurately understand the video topic and viewer promise.
+- Do not create deceptive clickbait; remain grounded in the true video content.
+- Utilize visual psychology (Curiosity Gap, visual hierarchy, contrast, color psychology, focal point).
+- Ensure the thumbnail captures attention in the first 1 second on mobile feeds.
+- CRITICAL: You MUST provide all generated explanations, titles, blueprints, tutorials, and alternatives in ENGLISH.
 
-    const userPrompt = `Video Title: "${videoTitle.replace(/"/g, '\\"')}"
-Video Summary: "${videoTopic.replace(/"/g, '\\"')}"
+INTELLIGENT YOUTUBE THUMBNAIL IMAGE-GENERATION PROMPT ENGINE ('imagePromptForAI' and 'blueprintDetails.aiImagePromptEnglish'):
+Generate a polished, production-grade text-to-image prompt (16:9 aspect ratio) ready to paste into external AI image generators. It must NOT be a generic listing of objects with buzzwords like "8K, cinematic, masterpiece".
+Follow the intelligent thumbnail reasoning pipeline:
+1. Understand the video promise, central stakes, emotional tone, and curiosity source.
+2. Classify content pattern (challenge, survival, tutorial, comparison, documentary, review, etc.) and tailor composition accordingly.
+3. Establish ONE dominant focal point occupying 40-50% of the frame with 2 to 4 major elements total; ensure instant 1-second comprehension at mobile scale.
+4. Specify explicit composition: camera angle, shot distance (medium close-up, dynamic angle; avoid distant landscapes unless essential to scale), crop, subject placement, and scale in frame.
+5. Factual consistency: preserve all numbers, brands, or products from the title without inventing unverified scenes.
+6. Text handling: max 1 punchy 2-4 word phrase in quotation marks, or explicitly "no text, clean visual only".
+7. Avoid generic AI buzzwords ("8K", "cinematic", "masterpiece"); avoid plastic AI skin, floating particles, movie poster styling, and clutter.
+8. Structure prompt in logical order: 1) Objective & connection to video, 2) Visual concept & curiosity gap, 3) Main subject & scale, 4) Expression & pose, 5) Camera framing & crop, 6) Supporting props, 7) Background & separation, 8) Lighting & contrast, 9) Mobile feed readability, 10) Text instruction, 11) Specific negative constraints, 12) --ar 16:9.`;
+
+    let userPrompt = `Video Title: "${videoTitle.replace(/"/g, '\\"')}"`;
+    if (videoContext) {
+      userPrompt += `\nUser-Provided Video Context / Transcript / Key Moments: "${videoContext.replace(/"/g, '\\"')}"`;
+    }
+    userPrompt += `\nVideo Summary: "${videoTopic.replace(/"/g, '\\"')}"
 Target Audience: "${targetAudience || 'General YouTube Audience'}"
 Category: "${category || 'General'}"
 Target Emotion: "${emotionGoal || 'Curiosity & Shock'}"
@@ -1957,7 +2093,10 @@ Custom Style Preference: "${customStyle || 'Modern, high-contrast, cinematic lig
               items: { type: Type.STRING },
               description: '3 matching alternative YouTube titles for testing',
             },
-            imagePromptForAI: { type: Type.STRING, description: 'Detailed 16:9 English prompt consistent with the video topic and concept' },
+            imagePromptForAI: {
+              type: Type.STRING,
+              description: 'Polished, directly usable 16:9 image-generation prompt following the intelligent thumbnail reasoning pipeline (connection to video promise, category-specific composition, single dominant focal point, mobile readability, curiosity gap, explicit text or no-text, negative constraints, and --ar 16:9). No generic buzzwords.',
+            },
             blueprintDetails: {
               type: Type.OBJECT,
               description: 'Comprehensive AI Thumbnail Blueprint structure',
@@ -2036,7 +2175,7 @@ Custom Style Preference: "${customStyle || 'Modern, high-contrast, cinematic lig
                 },
                 aiImagePromptEnglish: {
                   type: Type.STRING,
-                  description: 'Detailed cinematic 16:9 text-to-image English prompt',
+                  description: 'Polished, directly usable 16:9 image-generation prompt following the intelligent thumbnail reasoning pipeline (connection to video promise, category-specific composition, single dominant focal point, mobile readability, curiosity gap, explicit text or no-text, negative constraints, and --ar 16:9). No generic buzzwords.',
                 },
                 whyItsStrongerPoints: {
                   type: Type.ARRAY,
@@ -2097,6 +2236,13 @@ Custom Style Preference: "${customStyle || 'Modern, high-contrast, cinematic lig
         success: false,
         error: 'Bad Gateway: Received invalid response structure from AI model. Please retry.',
       });
+    }
+
+    if (parsedData.imagePromptForAI && typeof parsedData.imagePromptForAI === 'string') {
+      parsedData.imagePromptForAI = sanitizeString(parsedData.imagePromptForAI, 3000);
+    }
+    if (parsedData.blueprintDetails?.aiImagePromptEnglish && typeof parsedData.blueprintDetails.aiImagePromptEnglish === 'string') {
+      parsedData.blueprintDetails.aiImagePromptEnglish = sanitizeString(parsedData.blueprintDetails.aiImagePromptEnglish, 3000);
     }
 
     const record = await rateLimitStore.increment(key, nextMidnight);

@@ -74,6 +74,7 @@ export interface StructuredExtraction {
 export interface VideoInput {
   videoTitle: string;
   videoTopic: string;
+  videoContext?: string;
   targetAudience: string;
   category: string;
   hasOwnThumbnail: boolean;
@@ -238,6 +239,7 @@ export interface AnalysisResult {
   uploadedImage?: string | null;
   videoTitle?: string;
   videoTopic?: string;
+  videoContext?: string;
 }
 
 export interface DetailedConceptBlueprint {
