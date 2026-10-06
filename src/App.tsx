@@ -287,12 +287,15 @@ export default function App() {
         )}
 
         {activeTab === 'simulator' && (
-          <YouTubeFeedPreview
-            thumbnailUrl={
-              currentAnalysis?.uploadedImage || currentConcept?.generatedImageUrl || lastInput?.thumbnailImage
-            }
-            videoTitle={lastInput?.videoTitle || currentAnalysis?.videoTitle || currentConcept?.videoTitle}
-          />
+          <div className="py-6 space-y-6">
+            <YouTubeHomepagePreview
+              thumbnailUrl={
+                currentAnalysis?.uploadedImage || currentConcept?.generatedImageUrl || lastInput?.thumbnailImage
+              }
+              videoTitle={lastInput?.videoTitle || currentAnalysis?.videoTitle || currentConcept?.videoTitle || 'I Survived The Most Extreme Places On Earth'}
+              channelName="Creator Studio"
+            />
+          </div>
         )}
 
         {activeTab === 'strategy' && <IdeaStrategyView />}

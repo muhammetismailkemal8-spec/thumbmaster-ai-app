@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Monitor,
   Smartphone,
@@ -12,6 +12,12 @@ import {
   Shuffle,
   Sparkles,
   SlidersHorizontal,
+  Upload,
+  Plus,
+  Trash2,
+  RotateCcw,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react';
 
 interface YouTubeHomepagePreviewProps {
@@ -20,112 +26,155 @@ interface YouTubeHomepagePreviewProps {
   channelName?: string;
 }
 
-interface SurroundingVideo {
+export interface SurroundingVideo {
   id: string;
   title: string;
   channel: string;
-  avatarColor: string;
+  avatarUrl: string;
+  thumbnailUrl: string;
   views: string;
   timeAgo: string;
   duration: string;
   verified: boolean;
-  bgGradient: string;
-  topicTag: string;
-  accentText?: string;
+  category: string;
+  isCustom?: boolean;
 }
 
-const STATIC_SURROUNDING_VIDEOS: SurroundingVideo[] = [
+// Exactly the 10 verified YouTube covers uploaded by user
+export const USER_EXACT_COVERS: SurroundingVideo[] = [
   {
-    id: 's1',
-    title: 'How I Built a $10M Software Company in 1 Year (The Truth)',
-    channel: 'Tech Foundry',
-    avatarColor: 'from-blue-600 to-indigo-600',
-    views: '842K views',
-    timeAgo: '3 days ago',
-    duration: '18:45',
+    id: 'user-cover-1',
+    title: '1 to 100 Years Old Fight For $500,000',
+    channel: 'MrBeast',
+    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
+    thumbnailUrl: '/covers/01_MrBeast_Yas_Yarisi.jpg',
+    views: '284M views',
+    timeAgo: '1 year ago',
+    duration: '28:55',
     verified: true,
-    bgGradient: 'from-slate-900 via-indigo-950 to-blue-900',
-    topicTag: 'Tech',
-    accentText: '$10M JOURNEY',
+    category: 'Entertainment & Comedy',
   },
   {
-    id: 's2',
-    title: 'Why 99% of Developers Do Not Understand Neural Networks',
-    channel: 'Aris AI Lab',
-    avatarColor: 'from-purple-600 to-pink-600',
-    views: '310K views',
-    timeAgo: '1 week ago',
-    duration: '12:10',
+    id: 'user-cover-2',
+    title: 'I Caught A Casino Cheater With Smart Glasses',
+    channel: 'Airrack',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
+    thumbnailUrl: '/covers/02_Airrack_Casino.jpg',
+    views: '8.1M views',
+    timeAgo: '2 years ago',
+    duration: '18:42',
     verified: true,
-    bgGradient: 'from-purple-950 via-slate-900 to-fuchsia-950',
-    topicTag: 'AI & Code',
-    accentText: 'HOW IT WORKS',
+    category: 'Entertainment & Comedy',
   },
   {
-    id: 's3',
-    title: 'Surviving 100 Days in Hardcore Minecraft Apocalypse',
-    channel: 'CraftMaster',
-    avatarColor: 'from-emerald-600 to-teal-600',
-    views: '1.9M views',
-    timeAgo: '2 weeks ago',
-    duration: '34:12',
+    id: 'user-cover-3',
+    title: 'Real Life Rocket League Edition 2 | Dude Perfect',
+    channel: 'Dude Perfect',
+    avatarUrl: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=120&q=80',
+    thumbnailUrl: '/covers/03_DudePerfect_RocketLeague.jpg',
+    views: '51M views',
+    timeAgo: '3 years ago',
+    duration: '10:35',
     verified: true,
-    bgGradient: 'from-emerald-950 via-slate-900 to-stone-900',
-    topicTag: 'Gaming',
-    accentText: 'DAY 100',
+    category: 'Entertainment & Comedy',
   },
   {
-    id: 's4',
-    title: 'How Apple Actually Designs Hardware (The Secret Process)',
-    channel: 'Design Decoded',
-    avatarColor: 'from-zinc-600 to-slate-700',
-    views: '520K views',
-    timeAgo: '5 days ago',
-    duration: '15:33',
+    id: 'user-cover-4',
+    title: 'I Entered the World’s Most Dangerous Cheese Race (And Won?)',
+    channel: 'Zac Alsop',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
+    thumbnailUrl: '/covers/04_ZacAlsop_Peynir_Yarisi.jpg',
+    views: '4.8M views',
+    timeAgo: '2 years ago',
+    duration: '14:20',
     verified: true,
-    bgGradient: 'from-zinc-900 via-slate-900 to-neutral-900',
-    topicTag: 'Design',
-    accentText: 'INSIDE APPLE',
+    category: 'Entertainment & Comedy',
   },
   {
-    id: 's5',
-    title: 'The Truth About Building Real Wealth in Your 20s',
-    channel: 'Modern Capital',
-    avatarColor: 'from-amber-600 to-yellow-600',
-    views: '1.1M views',
-    timeAgo: '1 month ago',
-    duration: '21:04',
+    id: 'user-cover-5',
+    title: 'I Climbed the World’s Steepest Hill on an Impossible Spiked Bike',
+    channel: 'Zac Alsop',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
+    thumbnailUrl: '/covers/05_ZacAlsop_Tirmanis.jpg',
+    views: '2.9M views',
+    timeAgo: '1 year ago',
+    duration: '17:15',
     verified: true,
-    bgGradient: 'from-amber-950 via-slate-950 to-orange-950',
-    topicTag: 'Finance',
-    accentText: 'THE BLUEPRINT',
+    category: 'Entertainment & Comedy',
   },
   {
-    id: 's6',
-    title: '10 Camera Hacks That Make Your Videos Look High Budget',
-    channel: 'Cinematic Frame',
-    avatarColor: 'from-red-600 to-rose-600',
-    views: '430K views',
-    timeAgo: '6 days ago',
-    duration: '09:50',
+    id: 'user-cover-6',
+    title: 'Sidemen $100,000 vs $100 Basketball Match (Pro vs Noobs)',
+    channel: 'Sidemen',
+    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=80',
+    thumbnailUrl: '/covers/06_Sidemen_Basketbol.jpg',
+    views: '18M views',
+    timeAgo: '2 years ago',
+    duration: '1:22:40',
     verified: true,
-    bgGradient: 'from-rose-950 via-slate-900 to-red-950',
-    topicTag: 'Filmmaking',
-    accentText: '10 HACKS',
+    category: 'Entertainment & Comedy',
   },
   {
-    id: 's7',
-    title: 'The Ultimate Minimalist Desk Setup for Deep Work (2026)',
-    channel: 'Studio Minimal',
-    avatarColor: 'from-cyan-600 to-blue-700',
-    views: '760K views',
-    timeAgo: '2 weeks ago',
-    duration: '14:18',
-    verified: false,
-    bgGradient: 'from-slate-900 via-cyan-950 to-slate-950',
-    topicTag: 'Productivity',
-    accentText: 'DESK TOUR',
+    id: 'user-cover-7',
+    title: 'Extreme $1,000,000,000 Cruise Ship Hide and Seek (7/20 Found)',
+    channel: 'Sidemen',
+    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=80',
+    thumbnailUrl: '/covers/07_Sidemen_Gemi_Saklambac.jpg',
+    views: '34M views',
+    timeAgo: '1 year ago',
+    duration: '1:12:15',
+    verified: true,
+    category: 'Entertainment & Comedy',
   },
+  {
+    id: 'user-cover-8',
+    title: 'I Hired A Hollywood Stunt Double To Live My Life (Fake Bar Fight)',
+    channel: 'Max Fosh',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80',
+    thumbnailUrl: '/covers/08_MaxFosh_Dublor.jpg',
+    views: '6.2M views',
+    timeAgo: '1 year ago',
+    duration: '12:50',
+    verified: true,
+    category: 'Entertainment & Comedy',
+  },
+  {
+    id: 'user-cover-9',
+    title: 'Survive 100 Days Trapped In A Grocery Store, Win $500,000 (Day 201)',
+    channel: 'MrBeast',
+    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
+    thumbnailUrl: '/covers/09_MrBeast_Market.jpg',
+    views: '240M views',
+    timeAgo: '4 years ago',
+    duration: '14:12',
+    verified: true,
+    category: 'Entertainment & Comedy',
+  },
+  {
+    id: 'user-cover-10',
+    title: 'I Trapped 100 People in a $10,000,000 Luxury Hotel (Call 911!)',
+    channel: 'Airrack',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
+    thumbnailUrl: '/covers/10_Airrack_Otel.jpg',
+    views: '9.4M views',
+    timeAgo: '1 year ago',
+    duration: '22:04',
+    verified: true,
+    category: 'Entertainment & Comedy',
+  },
+];
+
+// Official category names matching the dropdown in photo 2
+const OFFICIAL_CATEGORIES = [
+  'All',
+  'Tech & Software',
+  'Finance & Business',
+  'Gaming & Challenge',
+  'Education & Tutorial',
+  'Vlog & Lifestyle',
+  'Entertainment & Comedy',
+  'Science & Documentary',
+  'Fitness & Sports',
 ];
 
 export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
@@ -136,20 +185,170 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [activeChip, setActiveChip] = useState<string>('All');
-  const [userSlotIndex, setUserSlotIndex] = useState<number>(1); // 0-indexed position in grid (default: position 2)
+  const [userSlotIndex, setUserSlotIndex] = useState<number>(1);
+  const [videosList, setVideosList] = useState<SurroundingVideo[]>(() => {
+    try {
+      const stored = localStorage.getItem('thumbmaster_user_covers_v4');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return USER_EXACT_COVERS;
+  });
+
+  // Modal & Edit State
+  const [isManageModalOpen, setIsManageModalOpen] = useState<boolean>(false);
+  const [selectedUploadCategory, setSelectedUploadCategory] = useState<string>('Entertainment & Comedy');
+  const [customTitleInput, setCustomTitleInput] = useState<string>('');
+  const [customChannelInput, setCustomChannelInput] = useState<string>('');
+  const [customImageUrlInput, setCustomImageUrlInput] = useState<string>('');
+  const [replaceTargetId, setReplaceTargetId] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const singleReplaceInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('thumbmaster_user_covers_v4', JSON.stringify(videosList));
+    } catch (e) {
+      console.warn('Could not save covers to storage', e);
+    }
+  }, [videosList]);
 
   const displayTitle = videoTitle && videoTitle.trim() ? videoTitle : 'Your Video Title';
-  const effectiveThumbnail = thumbnailUrl || 'https://picsum.photos/seed/thumbmaster/1280/720';
+  const effectiveThumbnail =
+    thumbnailUrl || '/covers/01_MrBeast_Yas_Yarisi.jpg';
 
-  const filterChips = ['All', 'Technology', 'Gaming', 'Productivity', 'Podcasts', 'Recently uploaded', 'Watched'];
+  // Filter videos according to selected category chip
+  const filteredVideos =
+    activeChip === 'All'
+      ? videosList
+      : videosList.filter((v) => v.category.toLowerCase() === activeChip.toLowerCase());
 
-  // Insert user's video at userSlotIndex among surrounding videos
-  const combinedVideos = [...STATIC_SURROUNDING_VIDEOS];
-  const clampedIndex = Math.min(Math.max(0, userSlotIndex), combinedVideos.length);
+  // Show filtered videos, or all if none in category
+  const displaySurroundingVideos = filteredVideos.length > 0 ? filteredVideos : videosList;
+  const clampedIndex = Math.min(Math.max(0, userSlotIndex), displaySurroundingVideos.length);
+
+  // Handle file uploads
+  const handleBatchImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files as FileList).forEach((file: File, index: number) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64Data = event.target?.result as string;
+        if (!base64Data) return;
+
+        const newVideo: SurroundingVideo = {
+          id: `custom-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 4)}`,
+          title:
+            customTitleInput.trim() ||
+            file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ') ||
+            `Kapak #${index + 1}`,
+          channel: customChannelInput.trim() || 'Custom Creator',
+          avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
+          thumbnailUrl: base64Data,
+          views: `${Math.floor(Math.random() * 800 + 100)}K views`,
+          timeAgo: `${Math.floor(Math.random() * 3 + 1)} weeks ago`,
+          duration: `${Math.floor(Math.random() * 15 + 8)}:${Math.floor(Math.random() * 50 + 10)}`,
+          verified: true,
+          category: selectedUploadCategory,
+          isCustom: true,
+        };
+
+        setVideosList((prev) => [newVideo, ...prev]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (e.target) e.target.value = '';
+    setCustomTitleInput('');
+    setCustomChannelInput('');
+  };
+
+  // Replace single card image directly
+  const handleSingleCardImageReplace = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !replaceTargetId) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64Data = event.target?.result as string;
+      if (!base64Data) return;
+
+      setVideosList((prev) =>
+        prev.map((item) =>
+          item.id === replaceTargetId
+            ? { ...item, thumbnailUrl: base64Data, isCustom: true }
+            : item
+        )
+      );
+      setReplaceTargetId(null);
+    };
+    reader.readAsDataURL(file);
+    if (e.target) e.target.value = '';
+  };
+
+  // Add cover from URL
+  const handleAddFromUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customImageUrlInput.trim()) return;
+
+    const newVideo: SurroundingVideo = {
+      id: `custom-url-${Date.now()}`,
+      title: customTitleInput.trim() || 'Özel Video Kapağı',
+      channel: customChannelInput.trim() || 'Özel Kanal',
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
+      thumbnailUrl: customImageUrlInput.trim(),
+      views: '1.2M views',
+      timeAgo: '2 weeks ago',
+      duration: '14:20',
+      verified: true,
+      category: selectedUploadCategory,
+      isCustom: true,
+    };
+
+    setVideosList((prev) => [newVideo, ...prev]);
+    setCustomImageUrlInput('');
+    setCustomTitleInput('');
+    setCustomChannelInput('');
+  };
+
+  const handleResetToDefaults = () => {
+    setVideosList(USER_EXACT_COVERS);
+    localStorage.removeItem('thumbmaster_user_covers_v4');
+  };
+
+  const handleDeleteVideo = (id: string) => {
+    setVideosList((prev) => prev.filter((v) => v.id !== id));
+  };
 
   return (
     <section className="max-w-6xl mx-auto px-4 space-y-5 text-slate-100">
-      {/* Section Header */}
+      {/* Hidden File Inputs */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="image/*"
+        className="hidden"
+        onChange={handleBatchImageUpload}
+      />
+      <input
+        ref={singleReplaceInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleSingleCardImageReplace}
+      />
+
+      {/* Top Header Card */}
       <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-5 sm:p-6 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-72 h-72 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -157,18 +356,29 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
           <div>
             <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-semibold text-rose-400 mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Section 1 • Realistic Feed Simulation</span>
+              <span>Gerçek YouTube Akış Simülatörü</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-              See Your Thumbnail in Context
+              Kapağınızı Gerçek YouTube Akışında Test Edin
             </h2>
             <p className="text-sm text-slate-400 mt-1 max-w-2xl">
-              Your thumbnail is shown among other videos to simulate how it may appear on the YouTube homepage.
+              Yüklediğiniz 10 adet orijinal YouTube kapağı arasında kendi kapağınızın nasıl öne çıktığını kategorilere göre inceleyin.
             </p>
           </div>
 
-          {/* Controls Bar */}
+          {/* Action & Control Bar */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Custom Cover Uploader Button */}
+            <button
+              type="button"
+              onClick={() => setIsManageModalOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-rose-600 to-amber-600 text-white shadow-md hover:from-rose-500 hover:to-amber-500 transition-all cursor-pointer"
+              title="Kapakları yönetin veya yenilerini ekleyin"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Kapakları Yönet ({videosList.length})</span>
+            </button>
+
             {/* Device Switcher */}
             <div className="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center space-x-1">
               <button
@@ -177,10 +387,10 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   device === 'desktop' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
-                title="Desktop 3-4 column grid"
+                title="Masaüstü görünümü"
               >
                 <Monitor className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Desktop</span>
+                <span className="hidden sm:inline">Masaüstü</span>
               </button>
               <button
                 type="button"
@@ -188,10 +398,10 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   device === 'mobile' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
-                title="Mobile stacked feed"
+                title="Mobil görünüm"
               >
                 <Smartphone className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Mobile</span>
+                <span className="hidden sm:inline">Mobil</span>
               </button>
             </div>
 
@@ -203,10 +413,10 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
                 className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   theme === 'dark' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
-                title="YouTube Dark Theme"
+                title="Koyu Tema"
               >
                 <Moon className="w-3.5 h-3.5 text-sky-400" />
-                <span className="hidden sm:inline">Dark</span>
+                <span className="hidden sm:inline">Koyu</span>
               </button>
               <button
                 type="button"
@@ -214,28 +424,28 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
                 className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   theme === 'light' ? 'bg-slate-200 text-slate-900 font-bold shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
-                title="YouTube Light Theme"
+                title="Açık Tema"
               >
                 <Sun className="w-3.5 h-3.5 text-amber-500" />
-                <span className="hidden sm:inline">Light</span>
+                <span className="hidden sm:inline">Açık</span>
               </button>
             </div>
 
-            {/* Shuffle Position */}
+            {/* Shuffle Slot Position */}
             <button
               type="button"
               onClick={() => setUserSlotIndex((prev) => (prev + 1) % 4)}
               className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition-colors"
-              title="Change your card position in feed"
+              title="Kapağınızın sayfadaki sırasını değiştirin"
             >
               <Shuffle className="w-3.5 h-3.5 text-rose-400" />
-              <span className="hidden sm:inline">Slot {clampedIndex + 1}</span>
+              <span className="hidden sm:inline">Sıra: {clampedIndex + 1}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Realistic YouTube Sandbox Container */}
+      {/* YouTube Sandbox Container */}
       <div
         className={`rounded-2xl border transition-colors shadow-2xl overflow-hidden ${
           theme === 'dark'
@@ -264,7 +474,7 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
             </div>
           </div>
 
-          {/* Search Bar (center) */}
+          {/* Search Bar */}
           <div className="hidden md:flex items-center flex-1 max-w-lg mx-6">
             <div
               className={`flex items-center w-full rounded-full border overflow-hidden ${
@@ -276,7 +486,7 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
               <input
                 type="text"
                 readOnly
-                value="Search"
+                value="Ara"
                 className={`w-full px-4 py-2 text-xs bg-transparent outline-none cursor-default select-none ${
                   theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
                 }`}
@@ -326,30 +536,38 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
           </div>
         </div>
 
-        {/* Mock Filter Chips Bar */}
+        {/* Category Filter Chips Bar - Exactly the 8 official categories */}
         <div
           className={`px-4 sm:px-6 py-2.5 border-b overflow-x-auto scrollbar-none flex items-center space-x-2 ${
             theme === 'dark' ? 'border-[#272727] bg-[#0f0f0f]' : 'border-slate-200 bg-white'
           }`}
         >
-          {filterChips.map((chip) => (
-            <button
-              key={chip}
-              type="button"
-              onClick={() => setActiveChip(chip)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                activeChip === chip
-                  ? theme === 'dark'
-                    ? 'bg-white text-black'
-                    : 'bg-black text-white'
-                  : theme === 'dark'
-                  ? 'bg-[#272727] text-white hover:bg-[#383838]'
-                  : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
-              }`}
-            >
-              {chip}
-            </button>
-          ))}
+          {OFFICIAL_CATEGORIES.map((chip) => {
+            const isSelected = activeChip === chip;
+            return (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => setActiveChip(chip)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center space-x-1.5 cursor-pointer ${
+                  isSelected
+                    ? theme === 'dark'
+                      ? 'bg-white text-black shadow'
+                      : 'bg-black text-white shadow'
+                    : theme === 'dark'
+                    ? 'bg-[#272727] text-white hover:bg-[#383838]'
+                    : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
+                }`}
+              >
+                <span>{chip}</span>
+                {chip === 'Entertainment & Comedy' && (
+                  <span className={`text-[10px] px-1 rounded font-bold ${isSelected ? 'bg-rose-600 text-white' : 'bg-rose-500/20 text-rose-300'}`}>
+                    10
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Video Cards Grid */}
@@ -361,24 +579,24 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
                 : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
             }`}
           >
-            {/* Render cards with user's video at clampedIndex */}
+            {/* Render cards with user's video inserted at clampedIndex */}
             {(() => {
               const cards: React.ReactNode[] = [];
               let surroundingIdx = 0;
 
-              for (let i = 0; i <= combinedVideos.length; i++) {
+              for (let i = 0; i <= displaySurroundingVideos.length; i++) {
                 if (i === clampedIndex) {
-                  // User's Video Card
+                  // User's Uploaded Video Card
                   cards.push(
                     <div
                       key="user-video-card"
                       className="group flex flex-col space-y-2.5 transition-transform duration-200 hover:-translate-y-1 relative"
                     >
                       {/* Thumbnail Container */}
-                      <div className="relative aspect-video rounded-xl overflow-hidden bg-black shadow-md border-2 border-rose-500/80 ring-2 ring-rose-500/20">
+                      <div className="relative aspect-video rounded-xl overflow-hidden bg-black shadow-md border-2 border-rose-500/90 ring-2 ring-rose-500/30">
                         <img
                           src={effectiveThumbnail}
-                          alt="Your uploaded thumbnail"
+                          alt="Sizin kapak görseliniz"
                           className="w-full h-full object-cover"
                         />
 
@@ -387,10 +605,10 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
                           12:48
                         </div>
 
-                        {/* Non-intrusive "YOUR THUMBNAIL" Badge */}
+                        {/* Active Badge */}
                         <div className="absolute top-2 left-2 flex items-center space-x-1.5 bg-rose-600/95 backdrop-blur-sm text-white text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md shadow-md ring-1 ring-white/30">
                           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                          <span>Your Thumbnail</span>
+                          <span>Sizin Kapağınız</span>
                         </div>
                       </div>
 
@@ -424,7 +642,7 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
                               theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
                             }`}
                           >
-                            14K views • 2 hours ago
+                            14K görüntüleme • 2 saat önce
                           </div>
                         </div>
                       </div>
@@ -432,53 +650,63 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
                   );
                 }
 
-                if (surroundingIdx < combinedVideos.length) {
-                  const video = combinedVideos[surroundingIdx];
+                if (surroundingIdx < displaySurroundingVideos.length) {
+                  const video = displaySurroundingVideos[surroundingIdx];
                   surroundingIdx++;
 
                   cards.push(
                     <div
                       key={video.id}
-                      className="group flex flex-col space-y-2.5 transition-transform duration-200 hover:-translate-y-1"
+                      className="group flex flex-col space-y-2.5 transition-transform duration-200 hover:-translate-y-1 relative"
                     >
-                      {/* Mock Thumbnail Image Card */}
-                      <div
-                        className={`relative aspect-video rounded-xl overflow-hidden shadow-md bg-gradient-to-br ${video.bgGradient} flex flex-col justify-between p-3 border border-slate-700/30 select-none`}
-                      >
-                        {/* Accent visual topic pill */}
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-black/60 text-slate-200 backdrop-blur-sm">
-                            {video.topicTag}
-                          </span>
-                          <span className="text-[9px] font-mono text-slate-400 bg-black/40 px-1.5 py-0.5 rounded">
-                            HD
+                      {/* Thumbnail Image Container */}
+                      <div className="relative aspect-video rounded-xl overflow-hidden shadow-md bg-slate-900 border border-slate-700/40 select-none">
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+
+                        {/* Top Category Badge */}
+                        <div className="absolute top-2 left-2 flex items-center space-x-1">
+                          <span className="text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-md bg-black/75 text-slate-200 backdrop-blur-md border border-white/10">
+                            {video.category}
                           </span>
                         </div>
 
-                        {/* Center bold mock graphic hook */}
-                        {video.accentText && (
-                          <div className="text-center my-auto">
-                            <span className="font-black text-xs sm:text-sm tracking-tight text-white/90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] px-2 py-1 rounded bg-black/30 border border-white/10">
-                              {video.accentText}
-                            </span>
-                          </div>
-                        )}
+                        {/* Quick Replace Cover Button on Card Hover */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplaceTargetId(video.id);
+                              singleReplaceInputRef.current?.click();
+                            }}
+                            className="p-1 rounded bg-black/80 hover:bg-rose-600 text-white text-[10px] backdrop-blur transition-colors"
+                            title="Bu görseli değiştirin"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
 
-                        {/* Bottom row */}
-                        <div className="flex items-center justify-between">
-                          <div className="w-2 h-2 rounded-full bg-red-500/80 animate-pulse" />
-                          <div className="bg-black/85 text-white font-mono text-[11px] font-bold px-1.5 py-0.5 rounded shadow">
-                            {video.duration}
-                          </div>
+                        {/* Bottom Duration Badge */}
+                        <div className="absolute bottom-2 right-2 bg-black/85 text-white font-mono text-[11px] font-bold px-1.5 py-0.5 rounded shadow">
+                          {video.duration}
                         </div>
                       </div>
 
                       {/* Video Details */}
                       <div className="flex space-x-3 pt-1">
-                        <div
-                          className={`w-9 h-9 rounded-full bg-gradient-to-tr ${video.avatarColor} flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm`}
-                        >
-                          {video.channel.charAt(0)}
+                        <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 shadow-sm border border-slate-700/50 bg-slate-800">
+                          <img
+                            src={video.avatarUrl}
+                            alt={video.channel}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
                         </div>
 
                         <div className="flex-1 min-w-0 space-y-1">
@@ -532,14 +760,185 @@ export const YouTubeHomepagePreview: React.FC<YouTubeHomepagePreviewProps> = ({
           <div className="flex items-center space-x-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
             <span>
-              <strong>Browsing Glance Test:</strong> Does your thumbnail create immediate visual contrast against competing videos?
+              <strong>Göz Gezdirme Testi (Glance Test):</strong> Kapağınız, rakiplerin yoğun ve renkli tasarımları arasında ilk 2 saniyede fark ediliyor mu?
             </span>
           </div>
-          <span className="text-[11px] opacity-75">
-            16:9 Aspect Ratio • Standard YouTube Display Density
-          </span>
+          <div className="flex items-center space-x-3 text-[11px] opacity-75">
+            <span>Seçtiğiniz 10 Orijinal YouTube Kapağı</span>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={handleResetToDefaults}
+              className="text-rose-400 hover:underline flex items-center space-x-1 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Orijinal 10 Kapağa Sıfırla</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Modal: Manage & Upload Custom Covers */}
+      {isManageModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Upload className="w-5 h-5 text-rose-500" />
+                <h3 className="font-bold text-lg text-white">Kapakları Yönet & Yeni Kapak Ekle</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManageModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6 overflow-y-auto flex-1 text-sm">
+              {/* Upload Form Box */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-4">
+                <h4 className="font-semibold text-white flex items-center space-x-2">
+                  <Plus className="w-4 h-4 text-emerald-400" />
+                  <span>Yeni Kapak Görseli Ekle</span>
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Kategori:</label>
+                    <select
+                      value={selectedUploadCategory}
+                      onChange={(e) => setSelectedUploadCategory(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-rose-500 text-xs"
+                    >
+                      {OFFICIAL_CATEGORIES.filter((c) => c !== 'All').map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Video Başlığı (İsteğe bağlı):</label>
+                    <input
+                      type="text"
+                      placeholder="Örn: 100 Gün Hayatta Kalma..."
+                      value={customTitleInput}
+                      onChange={(e) => setCustomTitleInput(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-rose-500 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Kanal İsmi (İsteğe bağlı):</label>
+                    <input
+                      type="text"
+                      placeholder="Örn: MrBeast, Airrack..."
+                      value={customChannelInput}
+                      onChange={(e) => setCustomChannelInput(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-rose-500 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Upload Buttons */}
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Bilgisayardan Görsel Seç</span>
+                  </button>
+
+                  <span className="text-xs text-slate-500">veya URL:</span>
+
+                  <form onSubmit={handleAddFromUrl} className="flex-1 flex min-w-[200px] gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://... görsel linki"
+                      value={customImageUrlInput}
+                      onChange={(e) => setCustomImageUrlInput(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500"
+                    />
+                    <button
+                      type="submit"
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-semibold text-slate-200"
+                    >
+                      Ekle
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              {/* List of Current Covers */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-white">Akıştaki Kapaklar ({videosList.length} Adet)</h4>
+                  <button
+                    type="button"
+                    onClick={handleResetToDefaults}
+                    className="text-xs text-rose-400 hover:underline flex items-center space-x-1"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Sıfırla (10 Kapak)</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-72 overflow-y-auto pr-1">
+                  {videosList.map((video) => (
+                    <div
+                      key={video.id}
+                      className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center space-x-3 group relative"
+                    >
+                      <img
+                        src={video.thumbnailUrl}
+                        alt={video.title}
+                        className="w-16 h-10 object-cover rounded-lg shrink-0 bg-slate-900"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs text-white truncate">{video.title}</p>
+                        <p className="text-[10px] text-slate-400 flex items-center space-x-1">
+                          <span className="truncate font-semibold text-rose-400">{video.category}</span>
+                          <span>•</span>
+                          <span className="truncate">{video.channel}</span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteVideo(video.id)}
+                        className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-900 transition-colors opacity-80 group-hover:opacity-100"
+                        title="Bu kapağı sil"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
+              <span className="text-xs text-slate-400">
+                Kapaklar tarayıcınıza kaydedilir ve akışta canlı gösterilir.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsManageModalOpen(false)}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Tamam
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
